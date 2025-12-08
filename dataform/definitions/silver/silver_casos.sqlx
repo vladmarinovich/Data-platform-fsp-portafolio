@@ -1,0 +1,103 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_silver",
+  name: "silver_casos",
+  tags: ["silver"],
+  description: "Directorio maestro de casos (animales) con limpieza, tipificación y deduplicación.",
+  columns: {
+    id_caso: "Identificador único del caso.",
+    nombre_caso: "Nombre normalizado del animal.",
+    estado: "Estado del caso (siempre 'no urgente').",
+    fecha_ingreso: "Fecha de ingreso en formato TIMESTAMP.",
+    fecha_salida: "Fecha de salida en formato TIMESTAMP.",
+    veterinaria: "Nombre normalizado de la veterinaria.",
+    diagnostico: "Diagnóstico inicial.",
+    archivo: "URL o referencia del archivo adjunto.",
+    id_hogar_de_paso: "ID del hogar de paso asignado.",
+    presupuesto_estimado: "Presupuesto asignado al caso.",
+    ciudad: "Ciudad asociada al caso.",
+    created_at: "Fecha de creación original.",
+    last_modified_at: "Watermark real convertido desde microsegundos.",
+    fecha_ingesta: "Fecha de ingestión a Silver.",
+    fuente: "Sistema de origen."
+  }
+}
+
+-- =====================================================
+-- BASE: Tipificación, reglas de negocio, normalización
+-- =====================================================
+WITH base AS (
+  SELECT
+    SAFE_CAST(id_caso AS INT64) AS id_caso,
+
+    CASE
+      WHEN nombre_caso IS NULL THEN 'anonimo'
+      ELSE TRIM(LOWER(nombre_caso))
+    END AS nombre_caso,
+
+    -- Estado fijo según el diagrama
+    'no urgente' AS estado,
+
+    -- Fechas desde nanosegundos → microsegundos → timestamp
+    TIMESTAMP_MICROS(CAST(DIV(created_at, 1000) AS INT64)) AS created_at,
+    TIMESTAMP_MICROS(CAST(DIV(fecha_ingreso, 1000) AS INT64)) AS fecha_ingreso,
+    TIMESTAMP_MICROS(CAST(DIV(fecha_salida, 1000) AS INT64)) AS fecha_salida,
+
+    CASE
+      WHEN veterinaria IS NULL THEN 'cba'
+      ELSE LOWER(TRIM(veterinaria))
+    END AS veterinaria,
+
+    CASE
+      WHEN diagnostico IS NULL THEN 'reservado'
+      ELSE LOWER(TRIM(diagnostico))
+    END AS diagnostico,
+
+    archivo,
+
+    CASE
+      WHEN id_hogar_de_paso IS NULL THEN 9
+      ELSE SAFE_CAST(id_hogar_de_paso AS INT64)
+    END AS id_hogar_de_paso,
+
+    CASE
+      WHEN presupuesto_estimado IS NULL THEN 3500000
+      ELSE CAST(presupuesto_estimado AS FLOAT64)
+    END AS presupuesto_estimado,
+
+    CASE
+      WHEN ciudad IS NULL THEN 'bogota'
+      ELSE LOWER(TRIM(ciudad))
+    END AS ciudad,
+
+    TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)) AS last_modified_at,
+    CURRENT_TIMESTAMP() AS fecha_ingesta,
+    'raw_casos' AS fuente
+
+  FROM ${ref("raw_casos")}
+  WHERE id_caso IS NOT NULL 
+    AND last_modified_at IS NOT NULL
+),
+
+-- =====================================================
+-- DEDUPLICACIÓN POR PK (ROW_NUMBER)
+-- =====================================================
+dedupe AS (
+  SELECT *
+  FROM base
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY id_caso
+    ORDER BY last_modified_at DESC
+  ) = 1
+)
+
+-- =====================================================
+-- RESULTADO FINAL (con incremental)
+-- =====================================================
+SELECT *
+FROM dedupe
+${ when(incremental(), `
+  WHERE last_modified_at >
+    (SELECT MAX(last_modified_at) FROM ${self()})
+`) }

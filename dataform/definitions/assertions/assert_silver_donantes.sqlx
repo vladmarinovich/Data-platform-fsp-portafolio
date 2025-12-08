@@ -1,0 +1,53 @@
+config {
+  type: "assertion",
+  name: "assert_silver_donantes",
+  description: "Validaciones completas para silver_donantes."
+}
+
+-- =======================================
+-- 1) DUPLICADOS POR PK
+-- =======================================
+SELECT
+  'duplicado_id_donante' AS tipo_error,
+  CAST(id_donante AS STRING) AS valor,
+  CAST(COUNT(*) AS INT64) AS cantidad
+FROM
+  fsp_silver.silver_donantes
+GROUP BY
+  id_donante
+HAVING
+  COUNT(*) > 1
+
+UNION ALL
+
+-- =======================================
+-- 2) CAMPOS OBLIGATORIOS NULL
+-- =======================================
+SELECT
+  'nulls_obligatorios' AS tipo_error,
+  CAST(id_donante AS STRING) AS valor,
+  CAST(NULL AS INT64) AS cantidad
+FROM
+  fsp_silver.silver_donantes
+WHERE
+  id_donante IS NULL
+  OR donante IS NULL
+  OR tipo_id IS NULL
+  OR identificacion IS NULL
+  OR correo IS NULL
+  OR ciudad IS NULL
+  OR last_modified_at IS NULL
+
+UNION ALL
+
+-- =======================================
+-- 3) FORMATO DE CORREO NO VÁLIDO
+-- =======================================
+SELECT
+  'correo_invalido' AS tipo_error,
+  CAST(correo AS STRING) AS valor,
+  CAST(NULL AS INT64) AS cantidad
+FROM
+  fsp_silver.silver_donantes
+WHERE
+  correo NOT LIKE '%@%'

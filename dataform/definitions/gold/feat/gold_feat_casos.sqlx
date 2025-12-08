@@ -1,0 +1,164 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_gold",
+  name: "gold_feat_casos",
+  tags: ["gold", "feat"]
+}
+
+WITH casos AS (
+  SELECT *
+  FROM `fsp-pipeline-project.fsp_gold.gold_dim_casos`
+),
+
+donaciones AS (
+  SELECT *
+  FROM `fsp-pipeline-project.fsp_gold.gold_donaciones`
+),
+
+gastos AS (
+  SELECT *
+  FROM `fsp-pipeline-project.fsp_gold.gold_gastos`
+)
+
+SELECT
+  -- =====================
+  -- CAMPOS HEREDADOS
+  -- =====================
+  c.id_caso,
+  c.id_hogar_de_paso,
+  c.fecha_ingreso,
+  c.fecha_salida,
+  c.estado,
+  c.presupuesto_estimado,
+
+  -- =====================
+  -- DONACIONES
+  -- =====================
+  SUM(d.monto) AS total_donado,
+  COUNT(d.id_donacion) AS num_donaciones,
+
+  MIN(d.fecha_donacion) AS primera_donacion,
+  MAX(d.fecha_donacion) AS ultima_donacion,
+
+  DATE_DIFF(CURRENT_DATE(), DATE(MAX(d.fecha_donacion)), DAY)
+    AS recencia_donacion_dias,
+
+  COUNT(DISTINCT d.id_donante) AS donantes_unicos,
+
+  AVG(d.monto) AS monto_promedio_donacion,
+  MAX(d.monto) AS monto_maximo_donacion,
+  MIN(d.monto) AS monto_minimo_donacion,
+
+  CASE WHEN COUNT(d.id_donacion) >= 3 THEN TRUE ELSE FALSE END
+    AS donacion_recurrente_ml,
+
+  CASE
+    WHEN SUM(d.monto) > 500000 THEN 'Crítica'
+    WHEN SUM(d.monto) BETWEEN 100000 AND 250000 THEN 'Normal'
+    ELSE 'Baja'
+  END AS criticidad_donacion,
+
+  -- =====================
+  -- GASTOS
+  -- =====================
+  SUM(g.monto) AS total_gastado,
+  COUNT(g.id_gasto) AS num_gastos,
+
+  MIN(g.fecha_pago) AS primer_gasto,
+  MAX(g.fecha_pago) AS ultimo_gasto,
+
+  DATE_DIFF(CURRENT_DATE(), DATE(MAX(g.fecha_pago)), DAY)
+    AS recencia_gasto_dias,
+
+  AVG(g.monto) AS promedio_gasto,
+  MAX(g.monto) AS monto_maximo_gasto,
+  MIN(g.monto) AS monto_minimo_gasto,
+
+  -- BALANCE
+  SUM(d.monto) - SUM(g.monto) AS balance_neto,
+
+  -- DESVIACIÓN
+  c.presupuesto_estimado - SUM(g.monto) AS desviacion_presupuesto,
+
+  SAFE_DIVIDE(
+    c.presupuesto_estimado - SUM(g.monto),
+    c.presupuesto_estimado
+  ) AS desviacion_pct,
+
+  SAFE_DIVIDE(
+    SUM(g.monto),
+    DATE_DIFF(
+      COALESCE(DATE(c.fecha_salida), CURRENT_DATE()),
+      DATE(c.fecha_ingreso),
+      DAY
+    )
+  ) AS gasto_promedio_dia,
+
+  -- =====================
+  -- OPERATIVOS
+  -- =====================
+  DATE_DIFF(
+    COALESCE(DATE(c.fecha_salida), CURRENT_DATE()),
+    DATE(c.fecha_ingreso),
+    DAY
+  ) AS duracion_dias,
+
+  DATE_DIFF(
+    CURRENT_DATE(),
+    DATE(c.fecha_ingreso),
+    DAY
+  ) AS antiguedad_caso,
+
+  DATE_DIFF(
+    CURRENT_DATE(),
+    DATE(MAX(d.fecha_donacion)),
+    DAY
+  ) AS dias_desde_ultima_donacion,
+
+  DATE_DIFF(
+    CURRENT_DATE(),
+    DATE(MAX(g.fecha_pago)),
+    DAY
+  ) AS dias_desde_ultima_gasto,
+
+  -- =====================
+  -- ESTADO
+  -- =====================
+  CASE WHEN c.fecha_salida IS NULL THEN TRUE ELSE FALSE END AS caso_activo,
+
+  CASE
+    WHEN c.fecha_salida IS NULL THEN 'Abierto'
+    ELSE 'Cerrado'
+  END AS estado_simplificado,
+
+  -- =====================
+  -- RIESGO
+  -- =====================
+  CASE
+    WHEN DATE_DIFF(CURRENT_DATE(), DATE(MAX(d.fecha_donacion)), DAY) > 90 THEN 'alto'
+    WHEN DATE_DIFF(CURRENT_DATE(), DATE(MAX(d.fecha_donacion)), DAY) BETWEEN 45 AND 90 THEN 'medio'
+    ELSE 'bajo'
+  END AS riesgo_abandono_ml,
+
+  CASE
+    WHEN DATE_DIFF(CURRENT_DATE(), DATE(MAX(g.fecha_pago)), DAY) > 60 THEN 'alto'
+    WHEN DATE_DIFF(CURRENT_DATE(), DATE(MAX(g.fecha_pago)), DAY) BETWEEN 30 AND 60 THEN 'medio'
+    ELSE 'bajo'
+  END AS riesgo_sobrecosto_ml,
+
+  NULL AS probabilidad_cierre
+
+FROM casos c
+LEFT JOIN donaciones d
+  ON d.id_caso = c.id_caso
+LEFT JOIN gastos g
+  ON g.id_caso = c.id_caso
+
+GROUP BY
+  c.id_caso,
+  c.id_hogar_de_paso,
+  c.fecha_ingreso,
+  c.fecha_salida,
+  c.estado,
+  c.presupuesto_estimado

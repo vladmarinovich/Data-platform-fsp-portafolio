@@ -1,0 +1,93 @@
+config {
+  type: "incremental",
+  database: "fsp-pipeline-project",
+  schema: "fsp_silver",
+  name: "silver_gastos",
+  tags: ["silver"],
+  description: "Tabla Silver de gastos, aplicando limpieza, reglas de negocio y deduplicación.",
+  columns: {
+    id_gasto: "Identificador único del gasto.",
+    nombre_gasto: "Nombre estandarizado del gasto.",
+    fecha_pago: "Fecha del gasto.",
+    id_caso: "Caso asociado, si es NULL se asigna 541.",
+    medio_pago: "Método de pago normalizado.",
+    monto: "Monto en formato FLOAT64.",
+    estado: "Estado del gasto, normalizado.",
+    id_proveedor: "Proveedor asociado, no puede ser NULL.",
+    created_at: "Fecha de creación del registro (timestamp).",
+    last_modified_at: "Watermark del registro.",
+    fecha_ingesta: "Timestamp de carga.",
+    fuente: "Tabla de origen."
+  }
+}
+
+WITH base AS (
+  SELECT
+    SAFE_CAST(id_gasto AS INT64) AS id_gasto,
+
+    TRIM(LOWER(nombre_gasto)) AS nombre_gasto,
+
+    TIMESTAMP_MICROS(DIV(created_at, 1000)) AS created_at,
+    TIMESTAMP_MICROS(DIV(last_modified_at, 1000)) AS last_modified_at,
+
+    -- FECHA DE PAGO
+    TIMESTAMP_MICROS(DIV(fecha_pago, 1000)) AS fecha_pago,
+
+    -- FK caso
+    CASE
+      WHEN id_caso IS NULL THEN 541
+      ELSE SAFE_CAST(id_caso AS INT64)
+    END AS id_caso,
+
+    -- MEDIO DE PAGO
+    CASE
+      WHEN medio_pago IS NULL THEN 'nequi'
+      WHEN LOWER(medio_pago) LIKE '%transferencia%' THEN 'transferencia'
+      WHEN LOWER(medio_pago) LIKE '%tarjeta%' THEN 'tarjeta'
+      ELSE LOWER(TRIM(medio_pago))
+    END AS medio_pago,
+
+    -- MONTO (no permitir null)
+    SAFE_CAST(monto AS FLOAT64) AS monto,
+
+    -- ESTADO
+    CASE
+      WHEN estado IS NULL THEN 'exitoso'
+      ELSE LOWER(TRIM(estado))
+    END AS estado,
+
+    -- PROVEEDOR (no permitir null)
+    SAFE_CAST(id_proveedor AS INT64) AS id_proveedor,
+
+    CURRENT_TIMESTAMP() AS fecha_ingesta,
+    'raw_gastos' AS fuente
+
+  FROM ${ref("raw_gastos")}
+  WHERE id_gasto IS NOT NULL
+),
+
+-- REGLAS DE NEGOCIO QUE ELIMINAN REGISTROS
+filtrado AS (
+  SELECT *
+  FROM base
+  WHERE monto IS NOT NULL
+    AND id_proveedor IS NOT NULL
+),
+
+-- DEDUPLICACIÓN POR LAST_MODIFIED_AT
+dedupe AS (
+  SELECT *
+  FROM filtrado
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY id_gasto
+    ORDER BY last_modified_at DESC
+  ) = 1
+)
+
+SELECT *
+FROM dedupe
+
+${ when(incremental(), `
+  WHERE last_modified_at >
+    (SELECT MAX(last_modified_at) FROM ${self()})
+`) }

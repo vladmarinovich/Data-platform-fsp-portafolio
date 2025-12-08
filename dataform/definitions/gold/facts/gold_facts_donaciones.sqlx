@@ -1,0 +1,56 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_gold",
+  name: "gold_donaciones",
+  tags: ["gold", "fact"]
+}
+
+SELECT
+  -- Campos heredados
+  d.id_donacion,
+  d.id_donante,
+  d.id_caso,
+  d.fecha_donacion,
+  d.monto,
+  d.medio_pago,
+  d.estado,
+  d.created_at,
+  d.last_modified_at,
+  d.fecha_ingesta,
+  d.fuente,
+
+  -- ------------------------------------------------------------
+  -- Campos calculados internos
+  -- ------------------------------------------------------------
+  CASE 
+    WHEN d.estado = "aprobada" THEN TRUE
+    ELSE FALSE
+  END AS es_donacion_valida,
+
+  CASE
+    WHEN d.monto > 500000 THEN TRUE
+    WHEN d.monto BETWEEN 100000 AND 250000 THEN FALSE
+    ELSE FALSE
+  END AS es_donacion_critica,
+
+  LOG(d.monto + 1) AS monto_log,
+
+  DATE_DIFF(
+    CURRENT_DATE(),
+    DATE(d.fecha_donacion),
+    DAY
+  ) AS recencia_donacion_dias,
+
+  DATE_DIFF(
+    CURRENT_DATE(),
+    MAX(DATE(d.fecha_donacion)) OVER (PARTITION BY d.id_donante),
+    DAY
+  ) AS recencia_donaciones_dias,
+
+  FORMAT_DATE("%Y-%m",
+    DATE(d.fecha_donacion)
+  ) AS anio_mes_donacion
+
+FROM
+  `fsp-pipeline-project.fsp_silver.silver_donaciones` d

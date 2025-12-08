@@ -1,0 +1,94 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_gold",
+  name: "gold_feat_proveedores",
+  tags: ["gold", "feat"]
+}
+
+WITH gastos AS (
+  SELECT *
+  FROM `fsp-pipeline-project.fsp_gold.gold_gastos`
+),
+
+agg AS (
+  SELECT
+    p.id_proveedor,
+    p.nombre_proveedor,
+    p.tipo_proveedor,
+    p.nit,
+    p.nombre_contacto,
+    p.correo,
+    p.telefono,
+    p.ciudad,
+    p.categoria_proveedor,
+    p.tiene_id_valido,
+    p.ciudad_normalizada,
+
+    -- AGREGACIONES
+    SUM(g.monto) AS total_gastado,
+    COUNT(g.id_gasto) AS numero_gastos,
+    AVG(g.monto) AS monto_promedio_gasto,
+    MAX(g.monto) AS monto_maximo_gasto,
+    MIN(g.monto) AS monto_minimo_gasto,
+
+    MAX(g.fecha_pago) AS ultimo_gasto_fecha,
+    MIN(g.fecha_pago) AS primera_fecha_pago,
+
+    SAFE_DIVIDE(
+      DATE_DIFF(
+        DATE(MAX(g.fecha_pago)),
+        DATE(MIN(g.fecha_pago)),
+        DAY
+      ),
+      COUNT(g.id_gasto) - 1
+    ) AS frecuencia_promedio_gasto_dias,
+
+    -- ESTA ES LA QUE NECESITA EL SEGUNDO SELECT
+    SAFE_DIVIDE(
+      SUM(g.monto),
+      SUM(SUM(g.monto)) OVER ()
+    ) AS porcentaje_dependencia_fsp
+
+  FROM `fsp-pipeline-project.fsp_gold.gold_dim_proveedores` p
+  LEFT JOIN gastos g
+    ON g.id_proveedor = p.id_proveedor
+
+  GROUP BY
+    id_proveedor,
+    nombre_proveedor,
+    tipo_proveedor,
+    nit,
+    nombre_contacto,
+    correo,
+    telefono,
+    ciudad,
+    categoria_proveedor,
+    tiene_id_valido,
+    ciudad_normalizada
+)
+
+SELECT
+  *,
+  -- RECALCULADOS CON CTE
+  DATE_DIFF(CURRENT_DATE(), DATE(ultimo_gasto_fecha), DAY) AS recencia_gasto_dias,
+
+  CASE
+    WHEN porcentaje_dependencia_fsp > 0.30 THEN 'Alto'
+    WHEN porcentaje_dependencia_fsp BETWEEN 0.15 AND 0.30 THEN 'Medio'
+    ELSE 'Bajo'
+  END AS riesgo_dependencia_ml,
+
+  CASE
+    WHEN categoria_proveedor = 'Servicios Veterinarios' THEN TRUE
+    WHEN categoria_proveedor = 'Medicamentos' THEN TRUE
+    ELSE FALSE
+  END AS proveedor_critico,
+
+  CASE
+    WHEN DATE(ultimo_gasto_fecha) >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+      THEN TRUE
+    ELSE FALSE
+  END AS proveedor_activo
+
+FROM agg

@@ -1,0 +1,110 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_gold",
+  name: "gold_feat_donantes",
+  tags: ["gold", "feat"]
+}
+
+WITH donaciones AS (
+  SELECT *
+  FROM `fsp-pipeline-project.fsp_gold.gold_donaciones`
+),
+
+agg AS (
+  SELECT
+    d.id_donante,
+    dd.donante,
+    dd.tipo_id,
+    dd.identificacion,
+    dd.correo,
+    dd.ciudad,
+    dd.tipo_donante,
+    dd.pais,
+    dd.canal_origen,
+    dd.consentimiento,
+    dd.created_at,
+    dd.last_modified_at,
+    dd.fecha_ingesta,
+    dd.es_donante_internacional,
+    dd.es_donante_local,
+    dd.antiguedad_donante_meses,
+    dd.contacto_valido,
+
+    -- =============================
+    -- MÉTRICAS DE DONACIÓN
+    -- =============================
+    SUM(d.monto) AS total_donado,
+    COUNT(d.id_donacion) AS num_donaciones,
+
+    AVG(d.monto) AS promedio_donacion,
+
+    MIN(d.fecha_donacion) AS primera_donacion,
+    MAX(d.fecha_donacion) AS ultima_donacion,
+
+    DATE_DIFF(
+      CURRENT_DATE(),
+      DATE(MAX(d.fecha_donacion)),
+      DAY
+    ) AS recencia_dias,
+
+    SAFE_DIVIDE(
+      DATE_DIFF(
+        DATE(MAX(d.fecha_donacion)),
+        DATE(MIN(d.fecha_donacion)),
+        DAY
+      ),
+      COUNT(d.id_donacion) - 1
+    ) AS frecuencia_promedio_dias,
+
+    MAX(d.monto) AS monto_maximo,
+    MIN(d.monto) AS monto_minimo
+
+  FROM `fsp-pipeline-project.fsp_gold.gold_dim_donantes` dd
+  LEFT JOIN donaciones d
+    ON dd.id_donante = d.id_donante
+
+  GROUP BY
+    d.id_donante,
+    donante,
+    tipo_id,
+    identificacion,
+    correo,
+    ciudad,
+    tipo_donante,
+    pais,
+    canal_origen,
+    consentimiento,
+    created_at,
+    last_modified_at,
+    fecha_ingesta,
+    es_donante_internacional,
+    es_donante_local,
+    antiguedad_donante_meses,
+    contacto_valido
+)
+
+SELECT
+  *,
+  
+  CASE
+    WHEN total_donado > 2000000 THEN 'oro'
+    WHEN total_donado > 700000 THEN 'plata'
+    WHEN total_donado > 200000 THEN 'bronce'
+    ELSE 'basico'
+  END AS categoria_financiera,
+
+  CASE WHEN num_donaciones >= 3 THEN TRUE ELSE FALSE END AS donante_recurrente_ml,
+
+  CASE WHEN num_donaciones >= 3 THEN TRUE ELSE FALSE END AS estatus_donantes,
+
+  -- Lifetime value = suma total
+  total_donado AS ltv,
+
+  -- velocidad_crecimiento = total / antigüedad en meses
+  SAFE_DIVIDE(
+    total_donado,
+    antiguedad_donante_meses
+  ) AS velocidad_crecimiento,
+
+FROM agg

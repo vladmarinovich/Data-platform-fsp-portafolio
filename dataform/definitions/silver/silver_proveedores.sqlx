@@ -1,0 +1,68 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_silver",
+  name: "silver_proveedores",
+  tags: ["silver"],
+  description: "Tabla Silver estandarizada para proveedores.",
+  columns: {
+    id_proveedor: "Identificador único del proveedor.",
+    nombre_proveedor: "Nombre del proveedor.",
+    tipo_proveedor: "Tipo o categoría del proveedor.",
+    nit: "Nit del proveedor.",
+    nombre_contacto: "Contacto principal del proveedor.",
+    correo: "Correo normalizado.",
+    telefono: "Teléfono normalizado.",
+    ciudad: "Ciudad del proveedor.",
+    fecha_ingesta: "Fecha de ingestión.",
+    fuente: "Origen del dato."
+  }
+}
+
+WITH base AS (
+
+  SELECT
+    SAFE_CAST(id_proveedor AS INT64) AS id_proveedor,
+
+    -- Si es NULL → eliminar registro (control en WHERE)
+    TRIM(nombre_proveedor) AS nombre_proveedor,
+
+    -- Si es NULL → eliminar registro
+    LOWER(TRIM(tipo_proveedor)) AS tipo_proveedor,
+
+    -- Si es NULL → eliminar registro
+    TRIM(nit) AS nit,
+
+    -- Si es NULL → eliminar registro
+    TRIM(nombre_contacto) AS nombre_contacto,
+
+    CASE 
+      WHEN correo IS NULL THEN 'desconocido'
+      ELSE LOWER(TRIM(correo))
+    END AS correo,
+
+    CASE 
+      WHEN telefono IS NULL THEN 'desconocido'
+      ELSE TRIM(telefono)
+    END AS telefono,
+
+    CASE 
+      WHEN ciudad IS NULL THEN 'bogota'
+      ELSE LOWER(TRIM(ciudad))
+    END AS ciudad,
+
+    CURRENT_TIMESTAMP() AS fecha_ingesta,
+    'raw_proveedores' AS fuente
+
+  FROM ${ref("raw_proveedores")}
+
+  -- Eliminación de registros incompletos:
+  WHERE 
+    id_proveedor IS NOT NULL
+    AND nombre_proveedor IS NOT NULL
+    AND tipo_proveedor IS NOT NULL
+    AND nit IS NOT NULL
+    AND nombre_contacto IS NOT NULL
+)
+
+SELECT * FROM base

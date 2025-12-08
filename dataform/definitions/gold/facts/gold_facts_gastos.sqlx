@@ -1,0 +1,61 @@
+config {
+  type: "table",
+  schema: "fsp_gold",
+  name: "gold_gastos",
+  tags: ["gold"]
+}
+
+WITH base AS (
+
+  SELECT
+    g.id_gasto,
+    g.nombre_gasto,
+    g.fecha_pago,
+    g.id_caso,
+    g.medio_pago,
+    g.estado,
+    g.monto,
+    g.id_proveedor,
+    g.created_at,
+    g.last_modified_at,
+    g.fecha_ingesta,
+    g.fuente,
+
+    -- -------------------------
+    -- CLASIFICACIÓN DE GASTO
+    -- -------------------------
+    CASE
+      WHEN LOWER(g.nombre_gasto) LIKE '%veterin%' THEN 'Veterinaria'
+      WHEN LOWER(g.nombre_gasto) LIKE '%insumo%' THEN 'Insumos'
+      WHEN LOWER(g.nombre_gasto) LIKE '%transpor%' THEN 'Transporte'
+      WHEN LOWER(g.nombre_gasto) LIKE '%uci%' THEN 'UCI'
+      ELSE 'General'
+    END AS tipo_gasto_estandarizado,
+
+    -- -------------------------
+    -- GASTO CRÍTICO
+    -- -------------------------
+    CASE
+      WHEN LOWER(g.nombre_gasto) LIKE '%veterin%' THEN TRUE
+      WHEN LOWER(g.nombre_gasto) LIKE '%uci%' THEN TRUE
+      ELSE FALSE
+    END AS es_gasto_critico,
+
+    -- -------------------------
+    -- LOG DEL MONTO
+    -- -------------------------
+    LOG(g.monto + 1) AS monto_total_log,
+
+    -- -------------------------
+    -- RECENCIA DEL GASTO (en días)
+    -- -------------------------
+    DATE_DIFF(
+      CURRENT_DATE(),
+      DATE(g.fecha_pago),
+      DAY
+    ) AS recencia_gasto_dias
+
+  FROM ${ref("fsp_silver", "silver_gastos")} g
+)
+
+SELECT * FROM base

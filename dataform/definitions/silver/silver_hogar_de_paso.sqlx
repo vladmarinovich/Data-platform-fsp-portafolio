@@ -1,0 +1,95 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_silver",
+  name: "silver_hogar_de_paso",
+  tags: ["silver"],
+  description: "Tabla Silver estandarizada para hogares de paso.",
+  columns: {
+    id_hogar_de_paso: "Identificador único del hogar de paso.",
+    nombre_hogar: "Nombre normalizado del hogar.",
+    tipo_hogar: "Tipo de hogar: albergue, fundación, hogar particular, etc.",
+    nombre_contacto: "Contacto directo del hogar.",
+    correo: "Correo normalizado.",
+    telefono: "Número de contacto.",
+    ciudad: "Ciudad del hogar.",
+    pais: "País del hogar.",
+    cupo_maximo: "Capacidad máxima del hogar.",
+    tarifa_diaria: "Tarifa diaria según acuerdo.",
+    desempeno: "Índice de desempeño del hogar.",
+    ultimo_contacto: "Fecha del último contacto.",
+    fecha_ingesta: "Timestamp de ingesta.",
+    fuente: "Origen del dato."
+  }
+}
+
+WITH base AS (
+
+  SELECT
+    SAFE_CAST(id_hogar_de_paso AS INT64) AS id_hogar_de_paso,
+
+    -- Si es NULL eliminar registro (se controla en el WHERE)
+    TRIM(nombre_hogar) AS nombre_hogar,
+
+    CASE 
+      WHEN tipo_hogar IS NULL THEN 'albergue'
+      ELSE LOWER(TRIM(tipo_hogar))
+    END AS tipo_hogar,
+
+    -- Si es NULL eliminar registro (se controla en el WHERE)
+    TRIM(nombre_contacto) AS nombre_contacto,
+
+    CASE 
+      WHEN correo IS NULL THEN 'desconocido'
+      ELSE LOWER(TRIM(correo))
+    END AS correo,
+
+    CASE 
+      WHEN telefono IS NULL THEN 'desconocido'
+      ELSE TRIM(telefono)
+    END AS telefono,
+
+    CASE 
+      WHEN ciudad IS NULL THEN 'bogota'
+      ELSE LOWER(TRIM(ciudad))
+    END AS ciudad,
+
+    CASE 
+      WHEN pais IS NULL THEN 'colombia'
+      ELSE INITCAP(TRIM(pais))
+    END AS pais,
+
+    CASE 
+      WHEN cupo_maximo IS NULL THEN 5
+      ELSE SAFE_CAST(cupo_maximo AS INT64)
+    END AS cupo_maximo,
+
+    CASE 
+      WHEN tarifa_diaria IS NULL THEN 20000
+      ELSE SAFE_CAST(tarifa_diaria AS FLOAT64)
+    END AS tarifa_diaria,
+
+    CASE 
+      WHEN desempeno IS NULL THEN 3.3
+      ELSE SAFE_CAST(desempeno AS FLOAT64)
+    END AS desempeno,
+
+    -- Fecha viene como string o timestamp → normalizamos
+    CASE 
+      WHEN ultimo_contacto IS NULL THEN DATE('2024-01-01')
+      ELSE DATE(ultimo_contacto)
+    END AS ultimo_contacto,
+
+    CURRENT_TIMESTAMP() AS fecha_ingesta,
+    'raw_hogar_de_paso' AS fuente
+
+  FROM ${ref("raw_hogar_de_paso")}
+
+  -- Reglas de eliminación:
+  WHERE 
+    id_hogar_de_paso IS NOT NULL
+    AND nombre_hogar IS NOT NULL
+    AND nombre_contacto IS NOT NULL
+)
+
+SELECT * FROM base

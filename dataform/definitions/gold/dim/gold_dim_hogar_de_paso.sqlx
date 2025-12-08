@@ -1,0 +1,60 @@
+config {
+  type: "table",
+  schema: "fsp_gold",
+  name: "gold_dim_hogar_de_paso",
+  tags: ["gold","dimension"]
+}
+
+WITH base AS (
+  SELECT
+    id_hogar_de_paso,
+    nombre_hogar,
+    tipo_hogar,
+    nombre_contacto,
+    correo,
+    ciudad,
+    pais,
+    cupo_maximo,
+    tarifa_diaria,
+    desempeno,           -- si fuera "desempeño" → poner `desempeño`
+    ultimo_contacto,   -- ← agregado correctamente, con backticks por seguridad
+  FROM ${ref("silver_hogar_de_paso")}
+),
+
+casos AS (
+  SELECT
+    id_hogar_de_paso,
+    COUNT(id_caso) AS numero_casos_total,
+    COUNTIF(fecha_salida IS NULL) AS numero_casos_activos,
+    COUNTIF(fecha_salida IS NOT NULL) AS numero_casos_finalizado
+  FROM ${ref("silver_casos")}
+  GROUP BY id_hogar_de_paso
+),
+
+calculado AS (
+  SELECT
+    b.*,
+    c.numero_casos_total,
+    c.numero_casos_activos,
+    c.numero_casos_finalizado,
+
+    SAFE_DIVIDE(c.numero_casos_activos, b.cupo_maximo) AS tasa_ocupacion,
+    SAFE_DIVIDE(c.numero_casos_finalizado, c.numero_casos_total) AS rotacion_casos,
+
+    CASE
+      WHEN SAFE_DIVIDE(c.numero_casos_activos, b.cupo_maximo) > 0.85 THEN "Alta"
+      WHEN SAFE_DIVIDE(c.numero_casos_activos, b.cupo_maximo) BETWEEN 0.40 AND 0.85 THEN "Media"
+      ELSE "Baja"
+    END AS clasificacion_ocupacion,
+
+    CASE
+      WHEN SAFE_DIVIDE(c.numero_casos_finalizado, c.numero_casos_total) > 0.7 THEN "Alta rotación"
+      WHEN SAFE_DIVIDE(c.numero_casos_finalizado, c.numero_casos_total) BETWEEN 0.3 AND 0.7 THEN "Media"
+      ELSE "Baja rotación"
+    END AS clasificacion_rotacion
+
+  FROM base b
+  LEFT JOIN casos c USING(id_hogar_de_paso)
+)
+
+SELECT * FROM calculado

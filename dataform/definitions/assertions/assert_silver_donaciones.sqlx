@@ -1,0 +1,99 @@
+config {
+    type: "assertion",
+    name: "assert_silver_donaciones",
+    description: "Validaciones de integridad, reglas de negocio y calidad de datos para silver_donaciones."
+}
+
+  -- =======================================================
+  -- 1) DUPLICADOS POR PK
+  -- =======================================================
+SELECT
+  'duplicado_id_donacion' AS tipo_error,
+  CAST(id_donacion AS STRING) AS valor,
+  CAST(COUNT(*) AS STRING) AS cantidad
+FROM
+  fsp_silver.silver_donaciones
+GROUP BY
+  id_donacion
+HAVING
+  COUNT(*) > 1
+UNION ALL
+  -- =======================================================
+  -- 2) NULLS OBLIGATORIOS
+  -- =======================================================
+SELECT
+  'nulls_obligatorios' AS tipo_error,
+  CAST(id_donacion AS STRING) AS valor,
+  NULL AS cantidad
+FROM
+  fsp_silver.silver_donaciones
+WHERE
+  id_donacion IS NULL
+  OR id_donante IS NULL
+  OR id_caso IS NULL
+  OR fecha_donacion IS NULL
+  OR monto IS NULL
+  OR medio_pago IS NULL
+  OR estado IS NULL
+  OR last_modified_at IS NULL
+UNION ALL
+  -- =======================================================
+  -- 3) FK inválida hacia DONANTES
+  -- =======================================================
+SELECT
+  'fk_invalida_id_donante' AS tipo_error,
+  CAST(d.id_donante AS STRING) AS valor,
+  NULL AS cantidad
+FROM
+  fsp_silver.silver_donaciones d
+LEFT JOIN
+  fsp_silver.silver_donantes s
+ON
+  d.id_donante = s.id_donante
+WHERE
+  s.id_donante IS NULL
+UNION ALL
+  -- =======================================================
+  -- 4) FK inválida hacia CASOS
+  -- =======================================================
+SELECT
+  'fk_invalida_id_caso' AS tipo_error,
+  CAST(d.id_caso AS STRING) AS valor,
+  NULL AS cantidad
+FROM
+  fsp_silver.silver_donaciones d
+LEFT JOIN
+  fsp_silver.silver_casos c
+ON
+  d.id_caso = c.id_caso
+WHERE
+  d.id_caso != 541
+  -- excepción permitida
+  AND c.id_caso IS NULL
+UNION ALL
+  -- =======================================================
+  -- 5) MONTO NEGATIVO
+  -- =======================================================
+SELECT
+  'monto_negativo' AS tipo_error,
+  CAST(id_donacion AS STRING) AS valor,
+  CAST(monto AS STRING) AS cantidad
+FROM
+  fsp_silver.silver_donaciones
+WHERE
+  monto < 0
+UNION ALL
+  -- =======================================================
+  -- 6) FECHAS IMPOSIBLES
+  -- =======================================================
+SELECT
+  'fecha_invalida' AS tipo_error,
+  CAST(id_donacion AS STRING) AS valor,
+  NULL AS cantidad
+FROM
+  fsp_silver.silver_donaciones
+WHERE
+  fecha_donacion < TIMESTAMP('2010-01-01')
+  OR fecha_donacion > CURRENT_TIMESTAMP()
+  OR last_modified_at < TIMESTAMP('2010-01-01')
+  OR last_modified_at > CURRENT_TIMESTAMP()

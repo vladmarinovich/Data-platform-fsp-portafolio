@@ -1,0 +1,98 @@
+config {
+  type: "assertion",
+  name: "assert_silver_proveedores"
+}
+
+WITH errores AS (
+
+  -- 1) PK nulo
+  SELECT
+    'pk_nulo' AS tipo_error,
+    CAST(id_proveedor AS STRING) AS id_registro,
+    'id_proveedor es NULL' AS detalle
+  FROM fsp_silver.silver_proveedores
+  WHERE id_proveedor IS NULL
+
+  UNION ALL
+
+  -- 2) nombre_proveedor obligatorio
+  SELECT
+    'nombre_proveedor_nulo',
+    CAST(id_proveedor AS STRING),
+    'nombre_proveedor es NULL'
+  FROM fsp_silver.silver_proveedores
+  WHERE nombre_proveedor IS NULL
+
+  UNION ALL
+
+  -- 3) tipo_proveedor obligatorio
+  SELECT
+    'tipo_proveedor_nulo',
+    CAST(id_proveedor AS STRING),
+    'tipo_proveedor es NULL'
+  FROM fsp_silver.silver_proveedores
+  WHERE tipo_proveedor IS NULL
+
+  UNION ALL
+
+  -- 4) nit obligatorio
+  SELECT
+    'nit_nulo',
+    CAST(id_proveedor AS STRING),
+    'nit es NULL'
+  FROM fsp_silver.silver_proveedores
+  WHERE nit IS NULL
+
+  UNION ALL
+
+  -- 5) nombre_contacto obligatorio
+  SELECT
+    'nombre_contacto_nulo',
+    CAST(id_proveedor AS STRING),
+    'nombre_contacto es NULL'
+  FROM fsp_silver.silver_proveedores
+  WHERE nombre_contacto IS NULL
+
+  UNION ALL
+
+  -- 6) correo no puede ser NULL
+  SELECT
+    'correo_invalido',
+    CAST(id_proveedor AS STRING),
+    CONCAT('correo inválido: ', IFNULL(correo, 'NULL'))
+  FROM fsp_silver.silver_proveedores
+  WHERE correo IS NULL OR correo = ''
+
+  UNION ALL
+
+  -- 7) telefono no puede ser NULL
+  SELECT
+    'telefono_invalido',
+    CAST(id_proveedor AS STRING),
+    CONCAT('telefono inválido: ', IFNULL(telefono, 'NULL'))
+  FROM fsp_silver.silver_proveedores
+  WHERE telefono IS NULL OR telefono = ''
+
+  UNION ALL
+
+  -- 8) ciudad no puede ser NULL
+  SELECT
+    'ciudad_invalida',
+    CAST(id_proveedor AS STRING),
+    CONCAT('ciudad inválida: ', IFNULL(ciudad, 'NULL'))
+  FROM fsp_silver.silver_proveedores
+  WHERE ciudad IS NULL OR ciudad = ''
+
+  UNION ALL
+
+  -- 9) duplicados en PK
+  SELECT
+    'pk_duplicado',
+    CAST(id_proveedor AS STRING),
+    CONCAT('duplicados: ', CAST(COUNT(*) AS STRING))
+  FROM fsp_silver.silver_proveedores
+  GROUP BY id_proveedor
+  HAVING COUNT(*) > 1
+)
+
+SELECT * FROM errores

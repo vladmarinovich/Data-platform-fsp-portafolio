@@ -1,0 +1,45 @@
+config {
+  type: "table",
+  schema: "fsp_gold",
+  name: "gold_dim_proveedores",
+  tags: ["gold", "dimension"]
+}
+
+WITH base AS (
+  SELECT
+    id_proveedor,
+    nombre_proveedor,
+    tipo_proveedor,
+    nit,
+    nombre_contacto,
+    correo,
+    telefono,
+    ciudad
+  FROM ${ref("silver_proveedores")}
+),
+
+calculado AS (
+  SELECT
+    *,
+    
+    -- ciudad normalizada
+    LOWER(TRIM(ciudad)) AS ciudad_normalizada,
+
+    -- identificación válida
+    CASE 
+      WHEN nit IS NULL OR nit = '' THEN FALSE
+      ELSE TRUE
+    END AS tiene_id_valido,
+
+    -- clasificación del proveedor 
+    CASE
+      WHEN LOWER(tipo_proveedor) LIKE '%veterinario%' THEN 'Servicios Veterinarios'
+      WHEN LOWER(tipo_proveedor) LIKE '%insumo%' THEN 'Insumos'
+      WHEN LOWER(tipo_proveedor) LIKE '%transporte%' THEN 'Logística'
+      ELSE 'General'
+    END AS categoria_proveedor
+
+  FROM base
+)
+
+SELECT * FROM calculado

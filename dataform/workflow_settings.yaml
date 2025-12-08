@@ -1,0 +1,6 @@
+# Configuración base del repositorio (Parámetros del dataform.json)
+dataformCoreVersion: 3.0.35
+defaultProject: fsp-pipeline-project
+defaultDataset: fsp_silver, fsp_gold
+defaultAssertionDataset: fsp_silver_assertions
+defaultLocation: US

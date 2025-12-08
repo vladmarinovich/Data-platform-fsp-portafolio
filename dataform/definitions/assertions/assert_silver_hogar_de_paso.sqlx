@@ -1,0 +1,127 @@
+config {
+  type: "assertion",
+  name: "assert_silver_hogar_de_paso"
+}
+
+-- =======================================================
+-- Todas las validaciones deben devolver SIEMPRE:
+-- tipo_error (STRING)
+-- id_registro (STRING)
+-- detalle (STRING)
+-- =======================================================
+
+WITH errores AS (
+
+  -- 1) PK nulo
+  SELECT
+    'pk_nulo' AS tipo_error,
+    CAST(id_hogar_de_paso AS STRING) AS id_registro,
+    'id_hogar_de_paso es NULL' AS detalle
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE id_hogar_de_paso IS NULL
+
+  UNION ALL
+
+  -- 2) nombre_hogar obligatorio
+  SELECT
+    'nombre_hogar_nulo',
+    CAST(id_hogar_de_paso AS STRING),
+    'nombre_hogar es NULL'
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE nombre_hogar IS NULL
+
+  UNION ALL
+
+  -- 3) tipo_hogar obligatorio
+  SELECT
+    'tipo_hogar_nulo',
+    CAST(id_hogar_de_paso AS STRING),
+    'tipo_hogar es NULL'
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE tipo_hogar IS NULL
+
+  UNION ALL
+
+  -- 4) nombre_contacto obligatorio
+  SELECT
+    'nombre_contacto_nulo',
+    CAST(id_hogar_de_paso AS STRING),
+    'nombre_contacto es NULL'
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE nombre_contacto IS NULL
+
+  UNION ALL
+
+  -- 5) correo normalizado
+  SELECT
+    'correo_invalido',
+    CAST(id_hogar_de_paso AS STRING),
+    CONCAT('correo inválido: ', IFNULL(correo, 'NULL'))
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE correo IS NULL OR correo = ''
+
+  UNION ALL
+
+  -- 6) ciudad normalizada
+  SELECT
+    'ciudad_invalida',
+    CAST(id_hogar_de_paso AS STRING),
+    CONCAT('ciudad inválida: ', IFNULL(ciudad, 'NULL'))
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE ciudad IS NULL OR ciudad = ''
+
+  UNION ALL
+
+  -- 7) cupo_maximo ≥ 0
+  SELECT
+    'cupo_maximo_negativo',
+    CAST(id_hogar_de_paso AS STRING),
+    CONCAT('cupo_maximo = ', CAST(cupo_maximo AS STRING))
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE SAFE_CAST(cupo_maximo AS INT64) < 0
+
+  UNION ALL
+
+  -- 8) tarifa_diaria ≥ 0
+  SELECT
+    'tarifa_diaria_negativa',
+    CAST(id_hogar_de_paso AS STRING),
+    CONCAT('tarifa_diaria = ', CAST(tarifa_diaria AS STRING))
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE SAFE_CAST(tarifa_diaria AS FLOAT64) < 0
+
+  UNION ALL
+
+  -- 9) desempeno entre 0 y 5
+  SELECT
+    'desempeno_fuera_de_rango',
+    CAST(id_hogar_de_paso AS STRING),
+    CONCAT('desempeno = ', CAST(desempeno AS STRING))
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE SAFE_CAST(desempeno AS FLOAT64) < 0
+     OR SAFE_CAST(desempeno AS FLOAT64) > 5
+
+  UNION ALL
+
+  -- 10) ultimo_contacto válido
+  SELECT
+    'ultimo_contacto_invalido',
+    CAST(id_hogar_de_paso AS STRING),
+    CONCAT('ultimo_contacto = ', CAST(ultimo_contacto AS STRING))
+  FROM fsp_silver.silver_hogar_de_paso
+  WHERE ultimo_contacto < DATE('2015-01-01')
+     OR ultimo_contacto > CURRENT_DATE()
+
+  UNION ALL
+
+  -- 11) duplicados de PK
+  SELECT
+    'pk_duplicado',
+    CAST(id_hogar_de_paso AS STRING),
+    CONCAT('duplicados: ', CAST(COUNT(*) AS STRING))
+  FROM fsp_silver.silver_hogar_de_paso
+  GROUP BY id_hogar_de_paso
+  HAVING COUNT(*) > 1
+)
+
+SELECT * FROM errores

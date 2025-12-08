@@ -1,0 +1,121 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_silver",
+  name: "silver_donaciones",
+  tags: ["silver"],
+  description: "Tabla Silver de donaciones: normaliza, estandariza y limpia los registros provenientes de Supabase.",
+  columns: {
+    id_donacion: "Identificador único de la donación.",
+    id_donante: "Identificador del donante asociado. Si no existe, se asigna el caso genérico 541.",
+    id_caso: "Identificador del caso asociado. Si viene NULL, también se asigna 541.",
+    fecha_donacion: "Fecha en que ocurrió la donación, convertida desde microsegundos.",
+    monto: "Monto en pesos donado. Los valores negativos son descartados.",
+    medio_pago: "Método de pago normalizado ('nequi', 'transferencia', 'tarjeta').",
+    estado: "Estado del pago ('exitoso' si viene NULL).",
+    created_at: "Fecha de creación original proveniente del sistema transaccional.",
+    last_modified_at: "Watermark real del registro, usado para incrementalidad y deduplicación.",
+    fecha_ingesta: "Timestamp del momento exacto de carga en la capa Silver.",
+    fuente: "Sistema o tabla de origen del dato."
+  }
+}
+
+-- ============================
+-- BASE LIMPIA
+-- ============================
+WITH base AS (
+  SELECT
+    -- PK
+    SAFE_CAST(id_donacion AS INT64) AS id_donacion,
+
+    -- FK Donante
+    CASE
+      WHEN id_donante IS NULL THEN 541
+      ELSE SAFE_CAST(id_donante AS INT64)
+    END AS id_donante,
+
+    -- FK Caso
+    CASE
+      WHEN id_caso IS NULL THEN 541
+      ELSE SAFE_CAST(id_caso AS INT64)
+    END AS id_caso,
+
+    -- Fecha donación (microsegundos → TIMESTAMP)
+    TIMESTAMP_MICROS(CAST(DIV(fecha_donacion, 1000) AS INT64)) AS fecha_donacion,
+
+    -- Monto (si < 0 se elimina después)
+    SAFE_CAST(monto AS FLOAT64) AS monto,
+
+    -- Medio de pago normalizado
+    CASE
+      WHEN medio_pago IS NULL THEN 'nequi'
+      WHEN LOWER(medio_pago) LIKE '%transfer%' THEN 'transferencia'
+      WHEN LOWER(medio_pago) LIKE '%tarjeta%' THEN 'tarjeta'
+      ELSE LOWER(TRIM(medio_pago))
+    END AS medio_pago,
+
+    -- Estado del pago normalizado
+    CASE
+      WHEN estado IS NULL THEN 'exitoso'
+      ELSE LOWER(TRIM(estado))
+    END AS estado,
+
+    -- Auditorías
+    TIMESTAMP_MICROS(CAST(DIV(created_at, 1000) AS INT64)) AS created_at,
+    TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)) AS last_modified_at,
+
+    CURRENT_TIMESTAMP() AS fecha_ingesta,
+    'raw_donaciones' AS fuente
+
+  FROM ${ref("raw_donaciones")}
+
+  WHERE id_donacion IS NOT NULL
+    AND last_modified_at IS NOT NULL
+),
+
+-- ============================
+-- REGLAS DE NEGOCIO
+-- ============================
+reglas AS (
+  SELECT
+    *
+  FROM base
+  WHERE monto >= 0   -- eliminar montos negativos
+),
+
+-- ============================
+-- DEDUPLICACIÓN
+-- ============================
+dedupe AS (
+  SELECT
+    *
+  FROM reglas
+  QUALIFY ROW_NUMBER() OVER (
+      PARTITION BY id_donacion
+      ORDER BY last_modified_at DESC
+  ) = 1
+)
+
+-- ============================
+-- RESULTADO FINAL
+-- ============================
+SELECT
+  id_donacion,
+  id_donante,
+  id_caso,
+  fecha_donacion,
+  monto,
+  medio_pago,
+  estado,
+  created_at,
+  last_modified_at,
+  fecha_ingesta,
+  fuente
+FROM dedupe
+
+${when(
+  incremental(),
+  `
+    WHERE last_modified_at > (SELECT MAX(last_modified_at) FROM ${self()})
+  `
+)}

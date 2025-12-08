@@ -1,0 +1,95 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_silver",
+  name: "silver_donantes",
+  tags: ["silver"],
+  description: "Directorio maestro de donantes.",
+  columns: {
+    id_donante: "Identificador único del donante.",
+    donante: "Nombre estandarizado.",
+    tipo_id: "Tipo de documento.",
+    identificacion: "Número de identificación.",
+    correo: "Correo normalizado.",
+    ciudad: "Ciudad del donante.",
+    tipo_donante: "Tipo de donante.",
+    pais: "País.",
+    canal_origen: "Canal de origen.",
+    consentimiento: "Aceptación de datos.",
+    created_at: "Fecha original de creación.",
+    last_modified_at: "Watermark del registro.",
+    fecha_ingesta: "Timestamp de ingestión.",
+    fuente: "Origen del dato."
+  }
+}
+
+WITH
+  base AS (
+  SELECT
+    SAFE_CAST(id_donante AS INT64) AS id_donante,
+    CASE
+      WHEN donante IS NULL THEN 'Anonimo'
+      ELSE TRIM(UPPER(donante))
+  END
+    AS donante,
+    CASE
+      WHEN tipo_id IS NULL THEN 'nn'
+      ELSE LOWER(TRIM(CAST(tipo_id AS STRING)))
+  END
+    AS tipo_id,
+    CASE
+      WHEN identificacion IS NULL THEN 'nn'
+      ELSE LOWER(TRIM(identificacion))
+  END
+    AS identificacion,
+    CASE
+      WHEN correo IS NULL THEN 'desconocido'
+      ELSE LOWER(TRIM(correo))
+  END
+    AS correo,
+    CASE
+      WHEN ciudad IS NULL THEN 'bogota'
+      ELSE LOWER(TRIM(ciudad))
+  END
+    AS ciudad,
+    CASE
+      WHEN tipo_donante IS NULL THEN 'unico'
+      ELSE LOWER(TRIM(tipo_donante))
+  END
+    AS tipo_donante,
+    CASE
+      WHEN pais IS NULL THEN 'colombia'
+      ELSE UPPER(TRIM(pais))
+  END
+    AS pais,
+    CASE
+      WHEN canal_origen IS NULL THEN 'organico'
+      ELSE LOWER(TRIM(canal_origen))
+  END
+    AS canal_origen,
+    CASE
+      WHEN consentimiento IS NULL THEN TRUE
+      ELSE SAFE_CAST(consentimiento AS BOOL)
+  END
+    AS consentimiento,
+    TIMESTAMP_MICROS(CAST(DIV(created_at, 1000) AS INT64)) AS created_at,
+    TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)) AS last_modified_at,
+    CURRENT_TIMESTAMP() AS fecha_ingesta,
+    'raw_donantes' AS fuente
+  FROM
+    ${ref("raw_donantes")}
+  WHERE
+    id_donante IS NOT NULL
+    AND last_modified_at IS NOT NULL ),
+  dedupe AS (
+  SELECT
+    *
+  FROM
+    base
+  QUALIFY
+    ROW_NUMBER() OVER (PARTITION BY id_donante ORDER BY last_modified_at DESC ) = 1 )
+SELECT
+  *
+FROM
+  dedupe
+${when(incremental(), `WHERE last_modified_at > (SELECT MAX(last_modified_at) FROM ${self()})`)}

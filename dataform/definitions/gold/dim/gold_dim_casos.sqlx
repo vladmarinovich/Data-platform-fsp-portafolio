@@ -1,0 +1,97 @@
+config {
+  type: "table",
+  schema: "fsp_gold",
+  name: "gold_dim_casos",
+  tags: ["gold", "dimension"]
+}
+
+WITH base AS (
+  SELECT 
+    id_caso,
+    nombre_caso,
+    estado,
+    fecha_ingreso,
+    fecha_salida,
+    veterinaria,
+    diagnostico,
+    archivo,
+    id_hogar_de_paso,
+    presupuesto_estimado,
+    ciudad,
+    created_at,
+    last_modified_at,
+    fecha_ingesta,
+    fuente
+  FROM ${ref("silver_casos")}
+),
+
+calculado AS (
+  SELECT
+    *,
+    
+    -- NORMALIZACIÓN: aseguro que ambas sean DATE
+    DATE(fecha_ingreso) AS fecha_ingreso_date,
+    DATE(COALESCE(fecha_salida, TIMESTAMP(CURRENT_DATE()))) AS fecha_salida_date,
+
+    -- DÍAS DE DURACIÓN
+    DATE_DIFF(
+      DATE(COALESCE(fecha_salida, TIMESTAMP(CURRENT_DATE()))),
+      DATE(fecha_ingreso),
+      DAY
+    ) AS dias_duracion,
+
+    -- INDICADOR
+    CASE 
+      WHEN fecha_salida IS NULL THEN TRUE
+      ELSE FALSE
+    END AS indicador_caso,
+
+    -- ANTIGÜEDAD
+    DATE_DIFF(CURRENT_DATE(), DATE(fecha_ingreso), DAY) AS antiguedad_caso,
+
+    -- ESTADO SIMPLIFICADO
+    CASE 
+      WHEN fecha_salida IS NULL THEN 'Abierto'
+      ELSE 'Cerrado'
+    END AS estado_normalizado,
+
+    -- CLASIFICACIÓN DURACIÓN
+    CASE
+      WHEN DATE_DIFF(DATE(COALESCE(fecha_salida, TIMESTAMP(CURRENT_DATE()))), DATE(fecha_ingreso), DAY) < 30 THEN 'Corta'
+      WHEN DATE_DIFF(DATE(COALESCE(fecha_salida, TIMESTAMP(CURRENT_DATE()))), DATE(fecha_ingreso), DAY) BETWEEN 30 AND 90 THEN 'Media'
+      ELSE 'Larga'
+    END AS clasificacion_duracion,
+
+    -- CLASIFICACIÓN PRESUPUESTO
+    CASE
+      WHEN presupuesto_estimado < 200000 THEN 'Bajo'
+      WHEN presupuesto_estimado BETWEEN 200000 AND 600000 THEN 'Medio'
+      ELSE 'Alto'
+    END AS clasificacion_presupuesto
+
+  FROM base
+)
+
+SELECT 
+  id_caso,
+  nombre_caso,
+  estado,
+  fecha_ingreso,
+  fecha_salida,
+  veterinaria,
+  diagnostico,
+  archivo,
+  id_hogar_de_paso,
+  presupuesto_estimado,
+  ciudad,
+  created_at,
+  last_modified_at,
+  fecha_ingesta,
+  fuente,
+  dias_duracion,
+  indicador_caso,
+  antiguedad_caso,
+  estado_normalizado,
+  clasificacion_duracion,
+  clasificacion_presupuesto
+FROM calculado

@@ -1,0 +1,70 @@
+config {
+  type: "assertion",
+  name: "assert_silver_casos",
+  description: "Validaciones completas para silver_casos."
+}
+
+-- =======================================================
+-- 1) DUPLICADOS POR PK
+-- =======================================================
+SELECT
+  'duplicado_id_caso' AS tipo_error,
+  CAST(id_caso AS STRING) AS valor,
+  CAST(COUNT(*) AS STRING) AS cantidad
+FROM
+  fsp_silver.silver_casos
+GROUP BY 1,2
+HAVING COUNT(*) > 1
+
+UNION ALL
+
+-- =======================================================
+-- 2) NULLS OBLIGATORIOS
+-- =======================================================
+SELECT
+  'nulls_obligatorios' AS tipo_error,
+  CAST(id_caso AS STRING) AS valor,
+  NULL AS cantidad
+FROM
+  fsp_silver.silver_casos
+WHERE
+     id_caso IS NULL
+  OR nombre_caso IS NULL
+  OR estado IS NULL
+  OR fecha_ingreso IS NULL
+  OR last_modified_at IS NULL
+
+UNION ALL
+
+-- =======================================================
+-- 3) FK INVÁLIDA HACIA HOGAR_DE_PASO
+-- =======================================================
+SELECT
+  'fk_invalida_hogar_de_paso' AS tipo_error,
+  CAST(c.id_hogar_de_paso AS STRING) AS valor,
+  NULL AS cantidad
+FROM
+  fsp_silver.silver_casos c
+LEFT JOIN
+  fsp_silver.silver_hogar_de_paso h
+ON
+  c.id_hogar_de_paso = h.id_hogar_de_paso
+WHERE
+  h.id_hogar_de_paso IS NULL
+  AND c.id_hogar_de_paso != 9
+
+UNION ALL
+
+-- =======================================================
+-- 4) FECHAS IMPOSIBLES
+-- =======================================================
+SELECT
+  'fecha_ingreso_invalida' AS tipo_error,
+  CAST(id_caso AS STRING) AS valor,
+  NULL AS cantidad
+FROM
+  fsp_silver.silver_casos
+WHERE
+  -- SOLUCIÓN: Convierte el TIMESTAMP a DATE para la comparación
+  DATE(fecha_ingreso) < DATE('2010-01-01')
+  OR DATE(fecha_ingreso) > CURRENT_DATE()
