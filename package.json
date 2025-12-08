@@ -1,0 +1,16 @@
+{
+  "name": "salvando-patitas-data-platform-(spdp)",
+  "version": "1.0.0",
+  "description": "Este proyecto implementa un pipeline de datos moderno y escalable en Google Cloud Platform (GCP) utilizando una arquitectura serverless y orientada a eventos.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/mcp-server-supabase": "^0.5.9"
+  }
+}

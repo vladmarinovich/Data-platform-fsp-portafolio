@@ -1,0 +1,43 @@
+# --- Seguridad & Secretos (CRITICO) ---
+.env
+.env.*
+*.json
+!package.json
+!tsconfig.json
+# Excepción: si usas service accounts locales
+*credentials*.json
+*key*.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# --- Node.js (si usas Dataform/NPM) ---
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# --- Terraform ---
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl
+
+# --- Sistema Operativo & IDE ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Logs y Temporales ---
+*.log
+# Excluir archivos de datos locales para no subir parquets gigantes por error
+*.parquet
+*.csv
