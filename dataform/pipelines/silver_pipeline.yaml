@@ -1,0 +1,6 @@
+pipeline:
+  name: "silver_pipeline"
+  description: "Pipeline para refrescar todas las tablas silver."
+  includedTags: ["silver"]
+  schedule:
+    cron: "0 * * * *"

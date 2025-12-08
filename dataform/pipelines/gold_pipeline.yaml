@@ -1,0 +1,6 @@
+pipeline:
+  name: "gold_pipeline"
+  description: "Pipeline para refrescar todas las tablas gold."
+  includedTags: ["gold"]
+  schedule:
+    cron: "0 * * * *"
