@@ -1,0 +1,82 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_gold",
+  name: "gold_feat_donaciones",
+  tags: ["gold", "feat"]
+}
+
+WITH base AS (
+  SELECT
+    d.id_donacion,
+    d.id_donante,
+    d.monto,
+    d.fecha_donacion,
+    d.medio_pago,
+    d.estado,
+
+    -- Campos del DIM donantes (solo los que realmente existen)
+    dd.donante,
+    dd.tipo_id,
+    dd.identificacion,
+    dd.correo,
+    dd.ciudad,
+    dd.tipo_donante,
+    dd.pais,
+    dd.canal_origen,
+    dd.consentimiento
+
+  FROM `fsp-pipeline-project.fsp_gold.gold_donaciones` d
+  LEFT JOIN `fsp-pipeline-project.fsp_gold.gold_dim_donantes` dd
+    ON d.id_donante = dd.id_donante
+),
+
+agg AS (
+  SELECT
+    *,
+    -- =========================
+    -- CAMPOS CALCULADOS FECHA
+    -- =========================
+    EXTRACT(YEAR FROM fecha_donacion) AS anio,
+    EXTRACT(MONTH FROM fecha_donacion) AS mes,
+    FORMAT_DATE('%Y-%m', fecha_donacion) AS anio_mes,
+
+    -- =========================
+    -- RFM
+    -- =========================
+    COUNT(id_donacion) OVER (PARTITION BY id_donante) AS frecuencia_donaciones,
+
+    SUM(monto) OVER (PARTITION BY id_donante) AS monto_total_donado,
+
+    AVG(monto) OVER (PARTITION BY id_donante) AS promedio_donacion_donante,
+
+    MAX(monto) OVER (PARTITION BY id_donante) AS monto_maximo_donante,
+    MIN(monto) OVER (PARTITION BY id_donante) AS monto_minimo_donante,
+
+    DATE_DIFF(
+  CURRENT_DATE(),
+  DATE(MAX(fecha_donacion) OVER (PARTITION BY id_donante)),
+  DAY
+) AS recencia_dias,
+
+    -- Segmento RFM simple
+    CASE
+      WHEN SUM(monto) OVER (PARTITION BY id_donante) > 2000000 THEN 'oro'
+      WHEN SUM(monto) OVER (PARTITION BY id_donante) > 700000 THEN 'plata'
+      WHEN SUM(monto) OVER (PARTITION BY id_donante) > 200000 THEN 'bronce'
+      ELSE 'basico'
+    END AS segmento_rfm,
+
+    -- =========================
+    -- DONACIÓN CRÍTICA
+    -- =========================
+    CASE
+      WHEN monto >= 500000 THEN 'critica'
+      WHEN monto >= 200000 THEN 'media'
+      ELSE 'pequena'
+    END AS tamano_donacion
+
+  FROM base
+)
+
+SELECT * FROM agg
