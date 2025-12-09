@@ -5,7 +5,6 @@
 !package.json
 !package-lock.json
 !tsconfig.json
-!dataform/dataform.json
 # Excepción: si usas service accounts locales
 *credentials*.json
 *key*.json
