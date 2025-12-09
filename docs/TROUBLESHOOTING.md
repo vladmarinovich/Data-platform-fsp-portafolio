@@ -77,3 +77,14 @@ Esta bitácora documenta los desafíos técnicos encontrados durante la implemen
 5.  **Formato:** Parquet con particionamiento Hive (`y=YYYY/m=MM/d=DD`).
 
 ---
+
+### 7. 🚨 Alerta de Calidad de Datos (Pendiente)
+**Incidente:** Dataform reporta fallo en la aserción `assert_silver_gastos`.
+**Síntoma:** Error `Assertion failed, expected zero rows`.
+**Causa Probable:**
+*   Existen registros en `silver_gastos` que violan integridad referencial (FK hacia Proveedores o Casos).
+*   Posibles duplicados o montos negativos.
+**Estado:** Deuda técnica registrada. El pipeline continúa su ejecución (no bloqueante), pero se debe investigar y limpiar la data raw en Supabase.
+**Acción Futura:**
+1.  Ejecutar query de diagnóstico en BigQuery para identificar IDs culpables.
+2.  Corregir datos en origen (Supabase) o ajustar regla de negocio.
