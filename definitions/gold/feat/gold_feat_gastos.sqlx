@@ -1,0 +1,88 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_gold",
+  name: "gold_feat_gastos",
+  tags: ["gold", "feat"]
+}
+
+WITH g AS (
+  SELECT * 
+  FROM `fsp-pipeline-project.fsp_gold.gold_gastos`
+),
+p AS (
+  SELECT * 
+  FROM `fsp-pipeline-project.fsp_gold.gold_dim_proveedores`
+),
+c AS (
+  SELECT * 
+  FROM `fsp-pipeline-project.fsp_gold.gold_dim_casos`
+)
+
+SELECT
+  -- ===========================
+  -- CAMPOS HEREDADOS
+  -- ===========================
+  g.id_gasto,
+  g.fecha_pago,
+  g.id_caso,
+  g.id_proveedor,
+  g.nombre_gasto,
+  g.monto,
+  g.medio_pago,
+  g.estado,
+  g.tipo_gasto_estandarizado,
+
+  -- ===========================
+  -- PROVEEDOR
+  -- ===========================
+  p.nombre_proveedor,
+  p.categoria_proveedor,
+  p.ciudad_normalizada AS proveedor_ciudad,
+  p.tiene_id_valido AS proveedor_id_valido,
+
+  -- ===========================
+  -- CASO
+  -- ===========================
+  c.nombre_caso,
+  c.estado AS estado_caso,
+  c.presupuesto_estimado,
+  c.fecha_salida,
+
+  -- Campo reconstruido porque NO existe en gold_dim_casos
+  CASE 
+    WHEN c.fecha_salida IS NULL THEN TRUE 
+    ELSE FALSE 
+  END AS es_caso_activo,
+
+  -- ===========================
+  -- CALCULADOS
+  -- ===========================
+  DATE_DIFF(
+    CURRENT_DATE(),
+    DATE(g.fecha_pago),
+    DAY
+  ) AS recencia_gasto_dias,
+
+  CASE 
+    WHEN g.tipo_gasto_estandarizado IN ('Veterinaria', 'UCI') THEN TRUE
+    ELSE FALSE
+  END AS es_gasto_critico,
+
+  LOG(g.monto + 1) AS monto_log,
+
+  CASE 
+    WHEN g.monto < 200000 THEN 'Pequeño'
+    WHEN g.monto BETWEEN 200000 AND 600000 THEN 'Mediano'
+    ELSE 'Grande'
+  END AS categoria_monto,
+
+  CASE
+    WHEN c.presupuesto_estimado IS NULL THEN NULL
+    WHEN g.monto > c.presupuesto_estimado THEN TRUE
+    ELSE FALSE
+  END AS sobrepresupuesto
+
+FROM g
+LEFT JOIN p ON g.id_proveedor = p.id_proveedor
+LEFT JOIN c ON g.id_caso = c.id_caso
