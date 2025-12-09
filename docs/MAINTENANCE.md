@@ -1,85 +1,80 @@
-# 🛠️ Guía de Mantenimiento y Soporte (Ops Manual)
+# 🛠️ Guía de Operaciones y Mantenimiento
 
-Este documento describe las herramientas de operación ("Scripts de Emergencia") ubicadas en la carpeta `scripts/`. Estas herramientas **NO** son parte del pipeline automático diario, sino que se ejecutan manualmente para resolver incidentes específicos.
+Este manual recopila los procedimientos estándar para operar, mantener y recuperar la plataforma de datos. Está diseñado para ser la referencia rápida ante incidentes.
 
 ---
 
-## 🧹 Scripts de Limpieza ("The Nuclear Option")
+## 🚦 Operación Diaria (Pipeline)
 
-Utiliza estos scripts cuando haya corrupción de datos, cambios radicales de esquema (ej. cambiar un tipo de dato de `String` a `Int64`), o necesites reiniciar una tabla desde cero.
+La plataforma se orquesta automáticamente. Sin embargo, para ejecuciones manuales o de relleno (backfill):
 
-**⚠️ ADVERTENCIA:** Estos scripts borran datos históricos del Data Lake (Bucket GCS). Úsalos con precaución.
-
-| Script | Descripción | Cuándo usarlo |
-| :--- | :--- | :--- |
-| `clean_casos.py` | Borra todo el historial de la tabla `casos` y resetea su watermark. | Error "Type Mismatch (Double vs Int64)" en BigQuery para Casos. |
-| `clean_donaciones.py` | Igual al anterior, pero para `donaciones`. | Error "Type Mismatch" en Donaciones. |
-| `clean_gastos.py` | Igual al anterior, pero para `gastos`. | Error "Type Mismatch" en Gastos. |
-| `clean_proveedores.py` | Borra las particiones antiguas (`y=...`) de Proveedores. | Para migrar Proveedores de estrategia Incremental a Snapshot (eliminar duplicados). |
-| `clean_bucket.py` | **PELIGRO TOTAL.** Borra TODO el contenido del bucket `raw` (todas las tablas). | Solo al inicio del proyecto o si quieres reiniciar el Data Lake completo. |
-
-**Ejemplo de Uso:**
+### Ejecutar Ingesta (Extract & Load)
+Para traer nuevos datos desde Supabase hacia GCS/BigQuery Raw:
 ```bash
-# Reiniciar la tabla de casos por completo
+# Desde la raíz del proyecto
 source .venv/bin/activate
-python3 scripts/clean_casos.py
-# Luego ejecutar el pipeline para recargar
 python3 -m src.main
 ```
 
----
-
-## ⏳ Scripts de Gestión de Tiempo (Watermarks)
-
-El pipeline usa `state/watermarks.json` en GCS para saber qué ya procesó. Estos scripts manipulan ese estado.
-
-| Script | Descripción | Cuándo usarlo |
-| :--- | :--- | :--- |
-| `rewind_watermark.py` | "La Máquina del Tiempo". Retrocede la fecha de última carga de una tabla. | Si descubres que la carga de ayer quedó incompleta o con datos erróneos y quieres reprocesar los últimos N días. |
-| `fix_watermark.py` | (Si existiera) Corrige fechas futuras o inválidas. | Si un bug puso `2099-01-01` en el watermark y el pipeline dejó de descargar datos. |
-
-**Ejemplo de Uso:**
-```bash
-# Retroceder el reloj de 'donaciones' al 1 de Noviembre
-# (Primero edita el script para poner la fecha deseada)
-python3 scripts/rewind_watermark.py
-```
+### Ejecutar Transformación (Dataform)
+Para procesar Raw -> Silver -> Gold en Google Cloud:
+1.  Ir a la consola de **Dataform**.
+2.  Pipeline: `fsp_pipeline`.
+3.  Clic en "Start Execution" > "All actions".
+4.  *(Opcional)* Seleccionar tags específicos: `silver`, `gold`, `assertions`.
 
 ---
 
-## 🧪 Scripts de Prueba (Laboratorio)
+## 🚑 Resolución de Incidentes (Troubleshooting)
 
-Herramientas para desarrollo y validación segura sin afectar producción.
+### 1. Fallo en Dataform Assertions 🚨
+**Síntoma:** El pipeline termina con advertencias o error en pasos como `assert_silver_gastos`.
+**Acción:**
+1.  Identificar la aserción fallida en la consola de Dataform.
+2.  Abrir el archivo `.sqlx` correspondiente en `definitions/assertions/`.
+3.  Copiar el query SQL de validación.
+4.  Ejecutarlo en BigQuery para ver las filas "culpables".
+5.  **Remedio:**
+    *   Si es data sucia real: Corregir en Supabase.
+    *   Si es un falso positivo: Ajustar la regla en el `.sqlx` y pushear el cambio.
 
-| Script | Descripción | Cuándo usarlo |
-| :--- | :--- | :--- |
-| `test_transformation.py` | Descarga 5 filas de Supabase, aplica la transformación actual y muestra los tipos de datos en consola. **No sube nada a GCS.** | Antes de modificar `src/etl/transform.py`. Úsalo para verificar que una nueva regla de limpieza funciona como esperas. |
+### 2. Reiniciar una Tabla Corrupta (Nuclear Option ☢️)
+Si una tabla Raw se corrompe (ej. mezcla de tipos de datos int/string incompatibles):
+1.  **Limpiar GCS:**
+    ```bash
+    python3 scripts/clean_casos.py  # Ejemplo para tabla casos
+    ```
+    *Esto borra todos los parquets y reinicia el watermark a fecha cero.*
+2.  **Recargar:** Ejecutar `src.main` para bajar todo el histórico de nuevo.
+3.  **Procesar:** Ejecutar Dataform con la opción "Run with Full Refresh" para recrear las tablas Silver/Gold.
 
-**Ejemplo de Uso:**
-```bash
-python3 scripts/test_transformation.py
-# Revisa la salida en consola para ver si 'telefono' es String o Float
-```
+### 3. Reprocesar Datos (Rewind ⏪)
+Si necesitas volver a cargar los datos de los últimos 3 días (ej. porque se corrigió un bug en origen):
+1.  Editar `scripts/rewind_watermark.py` con la fecha deseada.
+2.  Ejecutar:
+    ```bash
+    python3 scripts/rewind_watermark.py
+    ```
+3.  Ejecutar el pipeline de ingesta normal.
 
 ---
 
-## 📋 Checklist de Resolución de Incidentes
+## 🧪 Pruebas Locales (Development)
 
-1.  **Error de Tipos en BigQuery:**
-    *   Ejecuta `clean_{tabla}.py`.
-    *   Ejecuta `python3 -m src.main` (Backfill).
-    *   Ejecuta `CREATE OR REPLACE EXTERNAL TABLE...` en BigQuery.
+Para validar cambios en la transformación sin afectar producción:
 
-2.  **Duplicados en Tablas Maestras:**
-    *   Ejecuta `clean_proveedores.py` (o similar).
-    *   Asegúrate de que la tabla esté en `FULL_LOAD_TABLES` en `src/etl/config.py`.
-    *   Ejecuta el pipeline.
-
-3.  **Pipeline no descarga datos nuevos:**
-    *   Revisa `watermarks.json` en GCS.
-    *   Si la fecha es correcta, verifica Supabase.
-    *   Si la fecha es futura/errónea, usa un script para corregir el JSON.
+1.  Crear un **Workspace** de desarrollo en Dataform (ej. `dev-vlad`).
+2.  Hacer cambios en el código `.sqlx`.
+3.  Ejecutar solo el nodo modificado con `Run selected node`.
+4.  Verificar los resultados en BigQuery bajo el dataset `dataform_staging` (o el configurado para dev).
 
 ---
-**Owner:** Operaciones de Datos SPDP  
-**Última Actualización:** Diciembre 2025
+
+## 📅 Tareas de Mantenimiento Periódico
+
+*   **Mensual:** Revisar costos de BigQuery y GCS. Ejecutar limpieza de logs antiguos si aplica.
+*   **Trimestral:** Rotar llaves de API de Supabase y Service Accounts de GCP.
+*   **Semestral:** Revisar reglas de Assertions para ver si siguen vigentes con el negocio.
+
+---
+**Responsable:** Vladislav Marinovich

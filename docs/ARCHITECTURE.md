@@ -1,63 +1,72 @@
 # 🏗️ Arquitectura de Datos: SPDP (Salvando Patitas Data Platform)
 
-Este documento describe la estrategia de extracción y carga (ELT) diseñada para garantizar consistencia, escalabilidad y simplicidad en el Data Lake.
+Este documento describe la arquitectura técnica de nuestra plataforma, diseñada bajo el paradigma **Lakehouse**. La solución integra un robusto ingestion pipeline en Python con un potente motor de transformación en Dataform (Google Cloud).
 
 ---
 
-## 🔄 Estrategias de Extracción
+## 🏛️ Diseño Conceptual: Medallion Architecture
 
-Utilizamos una arquitectura híbrida dependiendo de la naturaleza de los datos:
+Hemos implementado una arquitectura de tres capas ("Medallion") para garantizar la calidad y gobernanza de los datos en cada etapa del proceso.
+
+```mermaid
+graph LR
+    A[Supabase Source] -->|Python Extract| B(GCS Bronze/Raw)
+    B -->|BigQuery External Tables| C(Raw Layer)
+    C -->|Dataform Clean| D(Final Silver)
+    D -->|Dataform Model| E(Gold Layer)
+    E -->|Dataform ML| F(Features ML)
+```
+
+### 🥉 Bronze Layer (Raw)
+*   **Fuente:** API transaccional de Supabase.
+*   **Formato:** Archivos Parquet nativos con tipado estricto.
+*   **Estrategia:** Ingesta incremental diaria (basada en `last_modified_at`) + Snapshots totales para catálogos maestros.
+*   **Objetivo:** Ser la "fuente de la verdad" inmutable. Si algo falla aguas abajo, siempre podemos reconstruir desde aquí.
+
+### 🥈 Silver Layer (Clean & Trusted)
+*   **Herramienta:** Dataform (SQLX).
+*   **Transformaciones:**
+    *   **Deduplicación:** Uso de `ROW_NUMBER() OVER(PARTITION BY id ORDER BY updated_at DESC)` para obtener la última versión de cada registro.
+    *   **Limpieza de Tipos:** Casteo seguro (`SAFE_CAST`) de strings a timestamps/numerics, tratamiento de nulos (`COALESCE`).
+    *   **Integridad:** Validaciones básicas de claves foráneas.
+*   **Objetivo:** Tener datos limpios y listos para consultar, eliminando basura técnica.
+
+### 🥇 Gold Layer (Business Ready)
+*   **Modelo:** Esquema Estrella (Star Schema) modificado.
+    *   **Dimensions (DIM):** `dim_casos`, `dim_donantes`, `dim_proveedores`, `dim_hogar`. Tablas desnormalizadas con atributos descriptivos.
+    *   **Facts (FACT):** `facts_donaciones`, `facts_gastos`. Tablas transaccionales enriquecidas con claves sustitutas.
+    *   **Features (FEAT):** `feat_donaciones`, `feat_gastos`. Ingeniería de características específica para alimentar modelos de Machine Learning (aggregations, rolling windows, RFM scoring).
+
+---
+
+## 🔄 Pipeline de Extracción (Python)
+
+El corazón de la ingesta es un script modular optimizado para latencia y costo.
 
 ### 1. Tablas Transaccionales (Estrategia Incremental)
-*   **Tablas:** `casos`, `donaciones`, `gastos`, `donantes`.
-*   **Comportamiento:**
-    *   Los datos crecen constantemente.
-    *   Usamos una columna "Watermark" (`last_modified_at`) para bajar solo lo nuevo o modificado.
-    *   **Almacenamiento:** Particionado por fecha de ingestión (`y=YYYY/m=MM/d=DD`).
-    *   **Objetivo:** Mantener un historial completo e inmutable de todos los cambios.
+*   **Scope:** `casos`, `donaciones`, `gastos`, `donantes`.
+*   **Lógica:** Consulta solo registros donde `updated_at > watermark_anterior`.
+*   **Persistencia:** Particionamiento Hive (`y=YYYY/m=MM/d=DD`) en GCS para optimizar costos de query en BigQuery.
 
-### 2. Tablas Maestras/Catálogos (Estrategia Snapshot)
-*   **Tablas:** `proveedores`, `hogar_de_paso`.
-*   **Comportamiento:**
-    *   Datos estáticos o de cambio lento (pocos registros, actualizaciones esporádicas).
-    *   No se requiere historial de cambios día a día en la capa Raw.
-    *   **Almacenamiento:** Ruta estática `.../latest/tabla.parquet`.
-    *   **Lógica:** **Sobreescritura (Overwrite)**. Cada ejecución reemplaza el archivo anterior.
-    *   **Objetivo:** Evitar duplicados en BigQuery. La tabla externa siempre apunta al archivo único "latest".
+### 2. Tablas Maestras (Estrategia Snapshot)
+*   **Scope:** `proveedores`, `hogar_de_paso`.
+*   **Lógica:** Descarga completa (`Full Refresh`) en cada ejecución.
+*   **Persistencia:** Sobrescritura en ruta `latest/` para garantizar unicidad sin lógica compleja de deduplicación.
 
 ---
 
-## 🛠️ Guía de Tipos de Datos (The "Iron Rules")
+## 🧪 Calidad de Datos (Data Quality Assurance)
 
-Para evitar errores de "Type Mismatch" en BigQuery, el extractor aplica conversiones estrictas:
+No confiamos ciegamente en los datos. Hemos implementado un framework de pruebas automatizadas con **Dataform Assertions**:
 
-| Concepto | Tipo Parquet/BQ | Regla Python |
-| :--- | :--- | :--- |
-| **IDs** | `INT64` (Nullable) | `to_numeric(..., errors='coerce').astype('Int64')` |
-| **Montos** | `FLOAT64` | `to_numeric(..., errors='coerce').astype('float64')` |
-| **Fechas** | `TIMESTAMP` | `to_datetime(..., errors='coerce')` |
-| **Texto** | `STRING` | `astype(str)` + limpieza de `"nan"` a `NULL` |
-| **JSON** | `STRING` | Convertido a texto para evitar estructuras anidadas complejas. |
+1.  **Unicidad:** `assert_unique_key` valida que no existan IDs duplicados en capa Silver.
+2.  **Referencialidad:** Validamos que cada `id_donante` en donaciones exista en la tabla de `donantes`.
+3.  **Reglas de Negocio:**
+    *   Montos de donación no pueden ser negativos.
+    *   Fechas de pago no pueden ser futuras (a más de 1 día) ni anteriores a 2010.
 
----
-
-## 🚀 Flujo de Trabajo (Pipeline)
-
-1.  **Extract:** Python descarga datos de la API de Supabase (usando `postgrest`).
-2.  **Transform:** Pandas limpia tipos y convierte nulos.
-3.  **Load:**
-    *   Si es Incremental -> Sube a partición diaria nueva.
-    *   Si es Snapshot -> Sube a carpeta `latest/` (sobrescribiendo).
-4.  **BigQuery:** Tablas Externas leen directamente desde GCS.
-    *   *Nota:* Las tablas Snapshot no deben tener particionamiento Hive en su definición DDL.
+Si una aserción falla, el pipeline alerta al equipo, pero (configurado actualmente) no detiene el flujo crítico, permitiendo análisis post-mortem.
 
 ---
-
-## 🚨 Troubleshooting Común
-
-*   **Duplicados en Proveedores:** Revisa si la tabla externa está leyendo particiones viejas (`y=2025...`) junto con el snapshot (`latest/`). Solución: Borrar particiones viejas en GCS.
-*   **Error "Type Double vs Int64":** Significa que hay archivos viejos con esquema sucio. Solución: Borrar bucket de la tabla y recargar.
-
----
-**Owner:** Ingeniería de Datos SPDP  
-**Última Actualización:** Diciembre 2025
+**Arquitecto:** Vladislav Marinovich  
+**Stack:** GCP (BigQuery, GCS, Dataform), Python, Supabase.
