@@ -1,0 +1,138 @@
+config {
+  type: "table",
+  database: "fsp-pipeline-project",
+  schema: "fsp_gold",
+  name: "gold_dashboard_financiero",
+  tags: ["gold", "dashboard"]
+}
+
+-- ===========================================
+-- BASE: UNION DE DONACIONES + GASTOS
+-- ===========================================
+WITH movimientos AS (
+  -- DONACIONES (NO tienen id_caso ni id_proveedor)
+  SELECT
+    don.anio_mes,
+    don.id_donante,
+    NULL AS id_proveedor,
+    NULL AS id_caso,
+    don.monto,
+    FALSE AS es_gasto,
+    FALSE AS es_gasto_critico,
+    FALSE AS sobrepresupuesto,
+    don.tamano_donacion
+  FROM `fsp-pipeline-project.fsp_gold.gold_feat_donaciones` don
+
+  UNION ALL
+
+  -- GASTOS (sí tienen id_proveedor, id_caso y campos críticos)
+  SELECT
+    gas.anio_mes,
+    NULL AS id_donante,
+    gas.id_proveedor,
+    gas.id_caso,
+    gas.monto,
+    TRUE AS es_gasto,
+    gas.es_gasto_critico,
+    gas.sobrepresupuesto,
+    gas.tamano_gasto AS tamano_donacion
+  FROM `fsp-pipeline-project.fsp_gold.gold_feat_gastos` gas
+),
+
+-- ===========================================
+-- AGG POR MES
+-- ===========================================
+agg AS (
+  SELECT
+    anio_mes,
+
+    -- SUMATORIAS
+    SUM(CASE WHEN es_gasto = FALSE THEN monto ELSE 0 END) AS total_donado,
+    SUM(CASE WHEN es_gasto = TRUE THEN monto ELSE 0 END) AS total_gastado,
+    SUM(CASE WHEN es_gasto_critico = TRUE THEN monto ELSE 0 END) AS total_gasto_critico,
+    SUM(CASE WHEN tamano_donacion = 'critica' THEN monto ELSE 0 END) AS total_donacion_critica,
+    SUM(CASE WHEN sobrepresupuesto = TRUE THEN monto ELSE 0 END) AS gastos_sobrepresupuesto,
+
+    -- ACTIVOS DEL MES
+    COUNT(DISTINCT id_caso) AS casos_activos_mes,
+    COUNT(DISTINCT id_donante) AS donantes_activos_mes,
+    COUNT(DISTINCT id_proveedor) AS proveedores_activos_mes
+
+  FROM movimientos
+  GROUP BY anio_mes
+),
+
+-- ===========================================
+-- MÉTRICAS CALCULADAS Y ROLLING WINDOWS
+-- ===========================================
+final AS (
+  SELECT
+    *,
+    
+    -- BALANCE MENSUAL
+    (total_donado - total_gastado) AS balance_neto,
+
+    -- ACUMULADO HISTÓRICO
+    SUM(total_donado - total_gastado) OVER (
+      ORDER BY anio_mes
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS balance_acumulado,
+
+    -- VARIACIONES %
+    SAFE_DIVIDE(
+      total_donado - LAG(total_donado) OVER (ORDER BY anio_mes),
+      LAG(total_donado) OVER (ORDER BY anio_mes)
+    ) AS var_ingresos_pct,
+
+    SAFE_DIVIDE(
+      total_gastado - LAG(total_gastado) OVER (ORDER BY anio_mes),
+      LAG(total_gastado) OVER (ORDER BY anio_mes)
+    ) AS var_gastos_pct,
+
+    SAFE_DIVIDE(
+      (total_donado - total_gastado)
+      - LAG(total_donado - total_gastado) OVER (ORDER BY anio_mes),
+      LAG(total_donado - total_gastado) OVER (ORDER BY anio_mes)
+    ) AS var_balance_pct,
+
+    -- ROLLING WINDOWS 3M
+    SUM(total_donado) OVER (
+      ORDER BY anio_mes
+      ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+    ) AS rolling_3m_ingresos,
+
+    SUM(total_gastado) OVER (
+      ORDER BY anio_mes
+      ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+    ) AS rolling_3m_gastos,
+
+    SUM(total_donado - total_gastado) OVER (
+      ORDER BY anio_mes
+      ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+    ) AS rolling_3m_balance,
+
+    -- EFICIENCIA Y RIESGO
+    SAFE_DIVIDE(total_gasto_critico, total_gastado) AS porcentaje_gasto_critico,
+    SAFE_DIVIDE(gastos_sobrepresupuesto, total_gastado) AS porcentaje_sobrepresupuesto,
+    SAFE_DIVIDE(total_donado, total_gastado) AS porcentaje_ingreso_gasto,
+
+    -- RUNWAY: meses que puede sobrevivir al ritmo actual de gasto
+    SAFE_DIVIDE(
+      SUM(total_donado - total_gastado) OVER (
+        ORDER BY anio_mes
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+      ),
+      NULLIF(total_gastado, 0)
+    ) AS runway_financiero,
+
+    -- ESTADO DEL MES
+    CASE
+      WHEN (total_donado - total_gastado) > 0 THEN 'Superávit'
+      WHEN (total_donado - total_gastado) < 0 THEN 'Déficit'
+      ELSE 'Equilibrado'
+    END AS estado_financiero_mes
+
+  FROM agg
+)
+
+SELECT * FROM final
