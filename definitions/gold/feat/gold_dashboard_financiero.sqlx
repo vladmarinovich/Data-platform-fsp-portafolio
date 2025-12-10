@@ -6,13 +6,15 @@ config {
   tags: ["gold", "dashboard"]
 }
 
--- ===========================================
+-- =======================================================
 -- BASE: UNION DE DONACIONES + GASTOS
--- ===========================================
+-- =======================================================
 WITH movimientos AS (
-  -- DONACIONES (NO tienen id_caso ni id_proveedor)
+
+  -- DONACIONES
   SELECT
-    don.anio_mes,
+    -- anio_mes viene como string → lo convertimos a DATE real
+    DATE(PARSE_DATE('%Y-%m', don.anio_mes)) AS anio_mes,
     don.id_donante,
     NULL AS id_proveedor,
     NULL AS id_caso,
@@ -20,13 +22,14 @@ WITH movimientos AS (
     FALSE AS es_gasto,
     FALSE AS es_gasto_critico,
     FALSE AS sobrepresupuesto,
+    don.tamano_donacion AS categoria_monto
   FROM `fsp-pipeline-project.fsp_gold.gold_dashboard_donaciones` don
 
   UNION ALL
 
-  -- GASTOS (sí tienen id_proveedor, id_caso y campos críticos)
+  -- GASTOS
   SELECT
-    gas.anio_mes,
+    DATE(PARSE_DATE('%Y-%m', gas.anio_mes)) AS anio_mes,
     NULL AS id_donante,
     gas.id_proveedor,
     gas.id_caso,
@@ -34,12 +37,13 @@ WITH movimientos AS (
     TRUE AS es_gasto,
     gas.es_gasto_critico,
     gas.sobrepresupuesto,
+    gas.categoria_monto
   FROM `fsp-pipeline-project.fsp_gold.gold_dashboard_gastos` gas
 ),
 
--- ===========================================
+-- =======================================================
 -- AGG POR MES
--- ===========================================
+-- =======================================================
 agg AS (
   SELECT
     anio_mes,
@@ -59,9 +63,9 @@ agg AS (
   GROUP BY anio_mes
 ),
 
--- ===========================================
+-- =======================================================
 -- MÉTRICAS CALCULADAS Y ROLLING WINDOWS
--- ===========================================
+-- =======================================================
 final AS (
   SELECT
     *,
@@ -113,7 +117,7 @@ final AS (
     SAFE_DIVIDE(gastos_sobrepresupuesto, total_gastado) AS porcentaje_sobrepresupuesto,
     SAFE_DIVIDE(total_donado, total_gastado) AS porcentaje_ingreso_gasto,
 
-    -- RUNWAY: meses que puede sobrevivir al ritmo actual de gasto
+    -- RUNWAY
     SAFE_DIVIDE(
       SUM(total_donado - total_gastado) OVER (
         ORDER BY anio_mes
