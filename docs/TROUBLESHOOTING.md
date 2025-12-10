@@ -88,3 +88,14 @@ Esta bitácora documenta los desafíos técnicos encontrados durante la implemen
 **Acción Futura:**
 1.  Ejecutar query de diagnóstico en BigQuery para identificar IDs culpables.
 2.  Corregir datos en origen (Supabase) o ajustar regla de negocio.
+
+### 8. 🏗️ Redundancia Arquitectónica: Facts vs Dashboard Table
+**Incidente:** Se detectó duplicidad lógica entre las tablas `gold_facts` (Star Schema) y `gold_feat` (One Big Table/Dashboard).
+**Contexto:**
+*   Las tablas `facts` contienen lógica de negocio (calculos, clasificaciones) que debería ser "pura".
+*   Las tablas `feat` vuelven a calular o JOINear estas métricas para facilitar el uso en tableros simples.
+**Estado:** Deuda Técnica de Arquitectura (Aceptada).
+**Impacto:** Mantenimiento doble si cambia una regla de negocio.
+**Acción Futura:**
+1.  Decidir entre purismo (Fact limpia + Vistas en BI) vs Pragmatismo (Tabla Dashboard lista para usar).
+2.  Refactorizar para que `feat` lea directamente de `facts` sin repetir lógica de cálculo.
