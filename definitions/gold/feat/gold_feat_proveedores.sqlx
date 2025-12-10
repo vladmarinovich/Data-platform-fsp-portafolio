@@ -33,7 +33,7 @@ agg AS (
     MIN(g.monto) AS monto_minimo_gasto,
 
     MAX(g.fecha_pago) AS ultimo_gasto_fecha,
-    MIN(g.fecha_pago) AS primera_fecha_pago,
+    MIN(g.fecha_pago) AS primera_fecha_gasto,
 
     SAFE_DIVIDE(
       DATE_DIFF(

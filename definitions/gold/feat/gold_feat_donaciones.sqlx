@@ -6,77 +6,100 @@ config {
   tags: ["gold", "feat"]
 }
 
-WITH base AS (
-  SELECT
-    d.id_donacion,
-    d.id_donante,
-    d.monto,
-    d.fecha_donacion,
-    d.medio_pago,
-    d.estado,
-
-    -- Campos del DIM donantes (solo los que realmente existen)
-    dd.donante,
-    dd.tipo_id,
-    dd.identificacion,
-    dd.correo,
-    dd.ciudad,
-    dd.tipo_donante,
-    dd.pais,
-    dd.canal_origen,
-    dd.consentimiento
-
-  FROM `fsp-pipeline-project.fsp_gold.gold_donaciones` d
-  LEFT JOIN `fsp-pipeline-project.fsp_gold.gold_dim_donantes` dd
-    ON d.id_donante = dd.id_donante
+WITH donaciones AS (
+  SELECT *
+  FROM ${ref("gold_donaciones")}
 ),
 
 agg AS (
   SELECT
-    *,
-    -- =========================
-    -- CAMPOS CALCULADOS FECHA
-    -- =========================
-    EXTRACT(YEAR FROM fecha_donacion) AS anio,
-    EXTRACT(MONTH FROM fecha_donacion) AS mes,
-    FORMAT_DATE('%Y-%m', fecha_donacion) AS anio_mes,
+    d.id_donante,
+    -- Campos heredados del DIM
+    dd.donante AS nombre_donante,
+    dd.identificacion,
+    dd.tipo_id,
+    dd.tipo_donante,
+    dd.correo,
+    dd.ciudad,
+    dd.pais,
+    dd.canal_origen,
+    dd.consentimiento,
 
-    -- =========================
-    -- RFM
-    -- =========================
-    COUNT(id_donacion) OVER (PARTITION BY id_donante) AS frecuencia_donaciones,
+    -- ===========================
+    -- AGREGACIONES (Métricas)
+    -- ===========================
+    COALESCE(SUM(d.monto), 0) AS total_donado,
+    COUNT(d.id_donacion) AS numero_donaciones,
+    AVG(d.monto) AS monto_promedio_donacion,
+    MAX(d.monto) AS monto_maximo_donacion,
+    MIN(d.monto) AS monto_minimo_donacion,
 
-    SUM(monto) OVER (PARTITION BY id_donante) AS monto_total_donado,
+    MAX(d.fecha_donacion) AS ultima_donacion_fecha,
+    MIN(d.fecha_donacion) AS primera_fecha_donacion,
 
-    AVG(monto) OVER (PARTITION BY id_donante) AS promedio_donacion_donante,
+    -- Frecuencia Promedio (Días entre donaciones)
+    SAFE_DIVIDE(
+      DATE_DIFF(
+        DATE(MAX(d.fecha_donacion)),
+        DATE(MIN(d.fecha_donacion)),
+        DAY
+      ),
+      COUNT(d.id_donacion) - 1
+    ) AS frecuencia_promedio_donacion_dias,
 
-    MAX(monto) OVER (PARTITION BY id_donante) AS monto_maximo_donante,
-    MIN(monto) OVER (PARTITION BY id_donante) AS monto_minimo_donante,
+    -- "Share of Wallet" (Porcentaje del total recaudado por la fundación)
+    SAFE_DIVIDE(
+      SUM(d.monto),
+      SUM(SUM(d.monto)) OVER ()
+    ) AS porcentaje_aporte_fsp
 
-    DATE_DIFF(
-  CURRENT_DATE(),
-  DATE(MAX(fecha_donacion) OVER (PARTITION BY id_donante)),
-  DAY
-) AS recencia_dias,
+  FROM ${ref("gold_dim_donantes")} dd
+  LEFT JOIN donaciones d
+    ON dd.id_donante = d.id_donante
 
-    -- Segmento RFM simple
-    CASE
-      WHEN SUM(monto) OVER (PARTITION BY id_donante) > 2000000 THEN 'oro'
-      WHEN SUM(monto) OVER (PARTITION BY id_donante) > 700000 THEN 'plata'
-      WHEN SUM(monto) OVER (PARTITION BY id_donante) > 200000 THEN 'bronce'
-      ELSE 'basico'
-    END AS segmento_rfm,
-
-    -- =========================
-    -- DONACIÓN CRÍTICA
-    -- =========================
-    CASE
-      WHEN monto >= 500000 THEN 'critica'
-      WHEN monto >= 200000 THEN 'media'
-      ELSE 'pequena'
-    END AS tamano_donacion
-
-  FROM base
+  GROUP BY
+    d.id_donante,
+    dd.donante,
+    dd.identificacion,
+    dd.tipo_id,
+    dd.tipo_donante,
+    dd.correo,
+    dd.ciudad,
+    dd.pais,
+    dd.canal_origen,
+    dd.consentimiento
 )
 
-SELECT * FROM agg
+SELECT
+  *,
+  -- ===========================
+  -- CALCULADOS DE NEGOCIO
+  -- ===========================
+  
+  -- Recencia
+  DATE_DIFF(CURRENT_DATE(), DATE(ultima_donacion_fecha), DAY) AS recencia_donacion_dias,
+
+  -- Nivel de Importancia (Basado en aporte total)
+  -- Ajusté los % porque un donante individual rara vez da el 30% del total global
+  -- Pero mantengo la lógica de la imagen.
+  CASE
+    WHEN porcentaje_aporte_fsp > 0.10 THEN 'Alto' -- > 10% del recaudo total histórico
+    WHEN porcentaje_aporte_fsp BETWEEN 0.01 AND 0.10 THEN 'Medio'
+    ELSE 'Bajo'
+  END AS nivel_importancia_ml,
+
+  -- Donante Crítico (Basado en Tipo o Monto)
+  CASE
+    WHEN tipo_donante = 'Empresa' THEN TRUE
+    WHEN total_donado > 10000000 THEN TRUE -- "Ballenas" (>10M)
+    ELSE FALSE
+  END AS es_donante_critico,
+
+  -- Donante Activo (Regla de 90 días de la imagen)
+  CASE
+    WHEN DATE(ultima_donacion_fecha) >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+      THEN TRUE
+    ELSE FALSE
+  END AS es_donante_activo
+
+FROM agg
