@@ -20,8 +20,7 @@ WITH movimientos AS (
     FALSE AS es_gasto,
     FALSE AS es_gasto_critico,
     FALSE AS sobrepresupuesto,
-    don.tamano_donacion
-  FROM `fsp-pipeline-project.fsp_gold.gold_feat_donaciones` don
+  FROM `fsp-pipeline-project.fsp_gold.gold_dashboard_donaciones` don
 
   UNION ALL
 
@@ -35,8 +34,7 @@ WITH movimientos AS (
     TRUE AS es_gasto,
     gas.es_gasto_critico,
     gas.sobrepresupuesto,
-    gas.tamano_gasto AS tamano_donacion
-  FROM `fsp-pipeline-project.fsp_gold.gold_feat_gastos` gas
+  FROM `fsp-pipeline-project.fsp_gold.gold_dashboard_gastos` gas
 ),
 
 -- ===========================================
@@ -50,7 +48,6 @@ agg AS (
     SUM(CASE WHEN es_gasto = FALSE THEN monto ELSE 0 END) AS total_donado,
     SUM(CASE WHEN es_gasto = TRUE THEN monto ELSE 0 END) AS total_gastado,
     SUM(CASE WHEN es_gasto_critico = TRUE THEN monto ELSE 0 END) AS total_gasto_critico,
-    SUM(CASE WHEN tamano_donacion = 'critica' THEN monto ELSE 0 END) AS total_donacion_critica,
     SUM(CASE WHEN sobrepresupuesto = TRUE THEN monto ELSE 0 END) AS gastos_sobrepresupuesto,
 
     -- ACTIVOS DEL MES

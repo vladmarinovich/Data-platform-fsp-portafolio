@@ -1,12 +1,12 @@
 config {
-  type: "table",
-  database: "fsp-pipeline-project",
-  schema: "fsp_gold",
-  name: "gold_dim_donantes",
-  tags: ["gold", "dimension"]
+    type: "table",
+    database: "fsp-pipeline-project",
+    schema: "fsp_gold",
+    name: "gold_dim_donantes",
+    tags: ["gold", "dimension"]
 }
-
-WITH don AS (
+WITH
+  don AS (
   SELECT
     id_donante,
     donante,
@@ -21,41 +21,36 @@ WITH don AS (
     created_at,
     last_modified_at,
     fecha_ingesta,
-
     -- Cálculos internos EXACTOS SEGÚN EL MODELO
-
     -- internacional si pais != Colombia
-    CASE 
+    CASE
       WHEN LOWER(pais) != 'colombia' THEN TRUE
       ELSE FALSE
-    END AS es_donante_internacional,
-
+  END
+    AS es_donante_internacional,
     -- local si pais = Colombia
-    CASE 
+    CASE
       WHEN LOWER(pais) = 'colombia' THEN TRUE
       ELSE FALSE
-    END AS es_donante_local,
-
+  END
+    AS es_donante_local,
     -- antigüedad en meses
     DATE_DIFF(CURRENT_DATE(), DATE(created_at), MONTH) AS antiguedad_donante_meses,
-
     -- contacto válido: correo NO nulo Y contiene '@'
-    CASE 
+    CASE
       WHEN correo IS NOT NULL AND correo LIKE '%@%' THEN TRUE
       ELSE FALSE
-    END AS contacto_valido
-
-  FROM ${ref("silver_donantes")}
-),
-
-cal AS (
-  SELECT *
-  FROM `fsp-pipeline-project.fsp_gold.gold_dim_calendario`
-)
-
+  END
+    AS contacto_valido
+  FROM
+    ${ref("silver_donantes")} ),
+  cal AS (
+  SELECT
+    *
+  FROM
+    `fsp-pipeline-project.fsp_gold.gold_dim_calendario` )
 SELECT
   d.*,
-
   -- Enriquecimiento calendario desde created_at
   c.anio AS anio_creacion,
   c.mes AS mes_creacion,
@@ -65,8 +60,9 @@ SELECT
   c.semestre AS semestre_creacion,
   c.anio_semestre AS anio_semestre_creacion,
   c.semana_iso AS semana_creacion,
-  c.anio_semana AS anio_semana_creacion
-
-FROM don d
-LEFT JOIN cal c
-  ON DATE(d.created_at) = c.fecha
+FROM
+  don d
+LEFT JOIN
+  cal c
+ON
+  DATE(d.created_at) = c.fecha
