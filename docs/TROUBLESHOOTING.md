@@ -89,17 +89,3 @@ Esta bitácora documenta los desafíos técnicos encontrados durante la implemen
 1.  Ejecutar query de diagnóstico en BigQuery para identificar IDs culpables.
 2.  Corregir datos en origen (Supabase) o ajustar regla de negocio.
 
-### 8. 🏗️ Confusión de Nomenclatura y Roles (Facts vs Features)
-**Observación:** La estructura actual de nombres en la capa Gold no refleja su función real.
-**Estado Actual (Tech Debt):**
-*   Tablas llamadas `feat_gastos/donaciones` actúan como hechos transaccionales.
-*   Tablas `feat_proveedores` actúan correctamente como "Entity Features" (agregaciones).
-*   Tablas `gold_facts_` contienen lógica enriquecida que compite con las anteriores.
-**Arquitectura Deseada (To-Be):**
-1.  **Tablas de Hechos (Facts):** Deben llamarse `gold_fact_gastos` y `gold_fact_donaciones`. Alimentan directamente a los Dashboards financieros.
-2.  **Tablas de Features (Feat):** Exclusivas para entidades (agregaciones por ID único). Deben ser: `gold_feat_donantes`, `gold_feat_proveedores`, `gold_feat_casos`.
-3.  **Dashboards:** Se alimentan de las FACTs + una hipotética `gold_dashboard_financiero` (One Big Table).
-**Acción Futura:**
-*   Renombrar `gold_feat_gastos` -> `gold_fact_gastos` (limpiar lógica de agregación si la hay).
-*   Consolidar lógica de negocio en las FACTs.
-*   Asegurar que las FEATs sean estrictamente Feature Stores (1 fila por entidad).

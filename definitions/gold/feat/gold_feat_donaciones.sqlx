@@ -2,7 +2,7 @@ config {
   type: "table",
   database: "fsp-pipeline-project",
   schema: "fsp_gold",
-  name: "gold_feat_donaciones",
+  name: "gold_dashboard_donaciones",
   tags: ["gold", "feat"]
 }
 
