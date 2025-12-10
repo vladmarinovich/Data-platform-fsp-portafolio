@@ -3,7 +3,7 @@ config {
   database: "fsp-pipeline-project",
   schema: "fsp_gold",
   name: "gold_dashboard_gastos",
-  tags: ["gold", "dashboard"]
+  tags: ["gold", "feat"]
 }
 
 WITH g AS (

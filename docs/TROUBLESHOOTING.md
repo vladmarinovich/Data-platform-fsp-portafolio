@@ -88,3 +88,4 @@ Esta bitácora documenta los desafíos técnicos encontrados durante la implemen
 **Acción Futura:**
 1.  Ejecutar query de diagnóstico en BigQuery para identificar IDs culpables.
 2.  Corregir datos en origen (Supabase) o ajustar regla de negocio.
+
