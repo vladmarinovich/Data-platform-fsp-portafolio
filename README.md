@@ -5,14 +5,20 @@
 
 ---
 
-## 📖 Sobre el Proyecto
+## 📖 Sobre el Proyecto: Full-Stack Data Engineering
 
-**Salvando Patitas** es una fundación dedicada al rescate y rehabilitación de animales. Este proyecto nace de la necesidad de centralizar y procesar sus datos operativos para responder preguntas críticas:
-*   ¿Cuál es la eficiencia de los hogares de paso?
-*   ¿Cómo optimizar el presupuesto mensual de donaciones?
-*   ¿Qué proveedores veterinarios son críticos para la operación?
+**Salvando Patitas** es una fundación dedicada al rescate y rehabilitación de animales. Este proyecto no es solo una plataforma de datos; es una **solución integral (End-to-End)** diseñada, construida y operada por un solo ingeniero con visión de negocio.
 
-Este repositorio contiene la implementación completa de una **Plataforma de Datos (Lakehouse)** que ingesta, limpia y modela información financiera y operativa para la toma de decisiones basada en datos.
+### 🌟 Diferenciadores Clave
+1.  **Visión Full-Stack & Autoria Total:** 
+    *   No solo ingestamos datos; **construimos la fuente**. El sistema operativo de la fundación (CRM) fue desarrollado a medida utilizando **Django y React**.
+    *   Esto garantiza un conocimiento profundo del dato desde su creación por el usuario final hasta su explotación en los dashboards de BI, eliminando las cajas negras.
+2.  **Eficiencia de Costos Radical (Cloud FinOps):**
+    *   Arquitectura optimizada para operar con **menos de $0.01 USD diarios**.
+    *   Uso estratégico de Cloud Run Jobs (Serverless) y BigQuery On-Demand para maximizar el ROI de una organización sin fines de lucro.
+    *   *Pensamiento de Ingeniero Industrial aplicado a la Nube: Máximo valor, mínimo desperdicio.*
+
+Este repositorio contiene la implementación del **Data Lakehouse** que alimenta la inteligencia de negocio de la fundación, respondiendo preguntas críticas sobre eficiencia operativa y sostenibilidad financiera.
 
 ---
 
