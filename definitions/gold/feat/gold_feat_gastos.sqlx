@@ -2,8 +2,8 @@ config {
   type: "table",
   database: "fsp-pipeline-project",
   schema: "fsp_gold",
-  name: "gold_dashboard_gastos",
-  tags: ["gold", "dashboard"]
+  name: "gold_feat_gastos",
+  tags: ["gold", "feat"]
 }
 
 WITH g AS (
