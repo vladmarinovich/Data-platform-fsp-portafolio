@@ -11,6 +11,7 @@ WITH base AS (
     d.id_donacion,
     d.id_donante,
     d.monto,
+    LOG(d.monto + 1) AS monto_log,
     d.fecha_donacion,
     d.medio_pago,
     d.estado,

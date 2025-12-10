@@ -2,8 +2,8 @@ config {
   type: "table",
   database: "fsp-pipeline-project",
   schema: "fsp_gold",
-  name: "gold_feat_gastos",
-  tags: ["gold", "feat"]
+  name: "gold_dashboard_gastos",
+  tags: ["gold", "dashboard"]
 }
 
 WITH g AS (
@@ -20,9 +20,6 @@ c AS (
 )
 
 SELECT
-  -- ===========================
-  -- CAMPOS HEREDADOS
-  -- ===========================
   g.id_gasto,
   g.fecha_pago,
   g.id_caso,
@@ -33,31 +30,29 @@ SELECT
   g.estado,
   g.tipo_gasto_estandarizado,
 
-  -- ===========================
-  -- PROVEEDOR
-  -- ===========================
   p.nombre_proveedor,
   p.categoria_proveedor,
   p.ciudad_normalizada AS proveedor_ciudad,
   p.tiene_id_valido AS proveedor_id_valido,
 
-  -- ===========================
-  -- CASO
-  -- ===========================
   c.nombre_caso,
   c.estado AS estado_caso,
   c.presupuesto_estimado,
   c.fecha_salida,
-
-  -- Campo reconstruido porque NO existe en gold_dim_casos
   CASE 
     WHEN c.fecha_salida IS NULL THEN TRUE 
     ELSE FALSE 
   END AS es_caso_activo,
 
-  -- ===========================
-  -- CALCULADOS
-  -- ===========================
+  EXTRACT(YEAR FROM g.fecha_pago) AS anio,
+  EXTRACT(MONTH FROM g.fecha_pago) AS mes,
+  FORMAT_DATE('%Y-%m', g.fecha_pago) AS anio_mes,
+
+  COUNT(g.id_gasto) OVER (PARTITION BY g.id_proveedor) AS frecuencia_gastos,
+  SUM(g.monto) OVER (PARTITION BY g.id_proveedor) AS monto_total_gastado,
+  MAX(g.monto) OVER (PARTITION BY g.id_proveedor) AS monto_maximo_gasto,
+  MIN(g.monto) OVER (PARTITION BY g.id_proveedor) AS monto_minimo_gasto,
+
   DATE_DIFF(
     CURRENT_DATE(),
     DATE(g.fecha_pago),
@@ -73,7 +68,7 @@ SELECT
 
   CASE 
     WHEN g.monto < 200000 THEN 'Pequeño'
-    WHEN g.monto BETWEEN 200000 AND 600000 THEN 'Mediano'
+    WHEN g.monto BETWEEN 200000 AND 400000 THEN 'Mediano'
     ELSE 'Grande'
   END AS categoria_monto,
 
