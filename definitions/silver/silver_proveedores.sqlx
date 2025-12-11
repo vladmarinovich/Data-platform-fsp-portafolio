@@ -36,7 +36,7 @@ WITH base AS (
         THEN "laboratorio"
       WHEN LOWER(TRIM(tipo_proveedor)) = "insumos" 
         THEN "transporte"
-      WHEN LOWER(TRIM(tipo_proveedor)) = "tecnologia" 
+      WHEN LOWER(TRIM(tipo_proveedor)) = "tecnología" 
         THEN "marketing"
       ELSE LOWER(TRIM(tipo_proveedor))
     END AS tipo_proveedor,
