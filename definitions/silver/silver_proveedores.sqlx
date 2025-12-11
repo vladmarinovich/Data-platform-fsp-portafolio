@@ -8,7 +8,7 @@ config {
   columns: {
     id_proveedor: "Identificador único del proveedor.",
     nombre_proveedor: "Nombre del proveedor.",
-    tipo_proveedor: "Tipo o categoría del proveedor.",
+    tipo_proveedor: "Tipo o categoría del proveedor (normalizada).",
     nit: "Nit del proveedor.",
     nombre_contacto: "Contacto principal del proveedor.",
     correo: "Correo normalizado.",
@@ -24,16 +24,21 @@ WITH base AS (
   SELECT
     SAFE_CAST(id_proveedor AS INT64) AS id_proveedor,
 
-    -- Si es NULL → eliminar registro (control en WHERE)
     TRIM(nombre_proveedor) AS nombre_proveedor,
 
-    -- Si es NULL → eliminar registro
-    LOWER(TRIM(tipo_proveedor)) AS tipo_proveedor,
+    -- ============================
+    -- RECATEGORIZACIÓN PROVEEDOR
+    -- ============================
+    CASE 
+      WHEN LOWER(TRIM(tipo_proveedor)) IN ("empaque", "veterinaria") THEN "servicios médicos"
+      WHEN LOWER(TRIM(tipo_proveedor)) = "exámenes" THEN "laboratorio"
+      WHEN LOWER(TRIM(tipo_proveedor)) = "insumos" THEN "transporte"
+      WHEN LOWER(TRIM(tipo_proveedor)) = "tecnologia" THEN "marketing"
+      ELSE LOWER(TRIM(tipo_proveedor))
+    END AS tipo_proveedor,
 
-    -- Si es NULL → eliminar registro
     TRIM(nit) AS nit,
 
-    -- Si es NULL → eliminar registro
     TRIM(nombre_contacto) AS nombre_contacto,
 
     CASE 
@@ -56,7 +61,6 @@ WITH base AS (
 
   FROM ${ref("raw_proveedores")}
 
-  -- Eliminación de registros incompletos:
   WHERE 
     id_proveedor IS NOT NULL
     AND nombre_proveedor IS NOT NULL
