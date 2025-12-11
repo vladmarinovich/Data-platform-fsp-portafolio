@@ -30,7 +30,7 @@ WITH base AS (
     -- RECATEGORIZACIÓN PROVEEDOR
     -- ============================
     CASE 
-      WHEN LOWER(TRIM(tipo_proveedor)) IN ("empaque", "veterinaria") THEN "servicios médicos"
+      WHEN LOWER(TRIM(tipo_proveedor)) IN ("empaques", "veterinaria") THEN "servicios médicos"
       WHEN LOWER(TRIM(tipo_proveedor)) = "exámenes" THEN "laboratorio"
       WHEN LOWER(TRIM(tipo_proveedor)) = "insumos" THEN "transporte"
       WHEN LOWER(TRIM(tipo_proveedor)) = "tecnologia" THEN "marketing"
