@@ -1,134 +1,92 @@
-# 🐾 Salvando Patitas Data Platform (SPDP)
+# Salvando Patitas Data Platform
 
-> **Ingeniería de Datos aplicada al Bienestar Animal.**  
-> *Una plataforma moderna, escalable y automatizada para optimizar la gestión de rescates, donaciones y recursos.*
+A serverless ELT pipeline designed to ingest, transform, and analyze operational data for the *Salvando Patitas* foundation. The system integrates Supabase (PostgreSQL) sources into a Google Cloud Platform ecosystem, utilizing **Cloud Run Jobs** for orchestrated extraction and **BigQuery + Dataform** for data warehousing and transformations.
 
----
+## Problem Statement
 
-## 📖 Sobre el Proyecto: Full-Stack Data Engineering
+The foundation faced challenges with operational data fragmentation across its custom CRM application. Accessing historical insights required manual data dumps, leading to inconsistencies and stale reporting. 
 
-**Salvando Patitas** es una fundación dedicada al rescate y rehabilitación de animales. Este proyecto no es solo una plataforma de datos; es una **solución integral (End-to-End)** diseñada, construida y operada por un solo ingeniero con visión de negocio.
+This platform addresses these issues by:
+*   **Centralizing Data**: Unifying donation, expense, and case management records into a single analytical source of truth.
+*   **Ensuring Consistency**: Implementing robust incremental loading strategies to capture all data changes without redundant processing.
+*   **Operational Reliability**: automating the pipeline to run daily with minimal maintenance overhead, ensuring traceability and error handling.
 
-### 🌟 Diferenciadores Clave
-1.  **Visión Full-Stack & Autoria Total:** 
-    *   No solo ingestamos datos; **construimos la fuente**. El sistema operativo de la fundación (CRM) fue desarrollado a medida utilizando **Django y React**.
-    *   Esto garantiza un conocimiento profundo del dato desde su creación por el usuario final hasta su explotación en los dashboards de BI, eliminando las cajas negras.
-2.  **Eficiencia de Costos Radical (Cloud FinOps):**
-    *   Arquitectura optimizada para operar con **menos de $0.01 USD diarios**.
-    *   Uso estratégico de Cloud Run Jobs (Serverless) y BigQuery On-Demand para maximizar el ROI de una organización sin fines de lucro.
-    *   *Pensamiento de Ingeniero Industrial aplicado a la Nube: Máximo valor, mínimo desperdicio.*
+## Architecture
 
-Este repositorio contiene la implementación del **Data Lakehouse** que alimenta la inteligencia de negocio de la fundación, respondiendo preguntas críticas sobre eficiencia operativa y sostenibilidad financiera.
+The architecture follows a modular ELT pattern, leveraging serverless components to minimize operational costs while maximizing scalability.
 
----
-
-## 🛠️ Tech Stack & Habilidades
-
-Este proyecto demuestra competencias en el **Modern Data Stack**:
-
-*   **Lenguajes:** 🐍 Python (ETL), 📜 SQLX (Dataform), 🐚 Bash.
-*   **Cloud (GCP):** ☁️ Google Cloud Storage (Data Lake), 🔍 BigQuery (Data Warehouse).
-*   **Orquestación & Transformación:** 🏗️ Google Dataform (CI/CD para SQL), Modular Python Scripts.
-*   **Fuentes de Datos:** ⚡ Supabase (PostgreSQL).
-*   **Buenas Prácticas:**
-    *   Arquitectura **Medallion** (Bronze 🥉 -> Silver 🥈 -> Gold 🥇).
-    *   **Data Quality Testing** (Assertions automáticos).
-    *   Estrategias de carga **Incremental** y **Snapshot**.
-    *   Infraestructura como Código (IaC).
-
----
-
-## 🏗️ Arquitectura de la Solución
-
-El flujo de datos está diseñado para ser robusto, idempotente y fácil de mantener:
-
-```mermaid
-graph LR
-    A[Supabase API] -->|Python Extract| B(GCS Bronze Layer)
-    B -->|Dataform Load| C(BigQuery Raw)
-    C -->|Dataform Transform| D(BigQuery Silver)
-    D -->|Dataform Model| E(BigQuery Gold)
-    E -->|Analytics| F[Looker/Tableau]
+```
+[Supabase (PostgreSQL)] 
+       |
+       | (Python ETL Container / Cloud Run Jobs)
+       v
+[Google Cloud Storage] <--- (State Management / watermarks.json)
+(Zone: Raw / Parquet)
+       |
+       | (External Tables)
+       v
+[BigQuery: Raw Layer]
+       |
+       | (Dataform Execution)
+       v
+[BigQuery: Silver Layer] ---> [Looker Studio Dashboard]
 ```
 
-### Componentes Clave
+### Core Components
+1.  **Extraction (Python)**: A containerized Python application extracts data from Supabase.
+    *   **Incremental Tables**: Fetches only records modified since the last execution watermark (persisted in GCS).
+    *   **Snapshot Tables**: Performs full reloads for small dimension tables to ensure referential integrity.
+    *   **Ingestion**: Data is written to GCS in partitioned Parquet format for optimal query performance.
+2.  **Storage (GCS & BigQuery)**: Google Cloud Storage acts as the Data Lake. BigQuery mounts these files as External Tables (Raw Layer).
+3.  **Transformation (Dataform)**: SQLX pipelines transform Raw data into the Silver layer, applying cleaning, casting, and business logic.
+4.  **Orchestration**: Cloud Scheduler triggers the Cloud Run Job daily.
 
-| Componente | Descripción | Herramienta |
-| :--- | :--- | :--- |
-| **Ingesta (ETL)** | Scripts modulares en Python con paginación, manejo de tipos estrictos y control de watermarks. | `src/etl/` |
-| **Data Lake** | Almacenamiento costo-eficiente en parquets particionados y snapshots. | GCS |
-| **Transformación** | Pipeline ELT con gestión de dependencias, grafos de ejecución y testing. | Dataform |
-| **Calidad** | Reglas de negocio (Assertions) para validar unicidad, integridad referencial y nulos. | SQLX |
+## Production Execution
 
----
+The pipeline is deployed as a Docker container on **Google Cloud Run Jobs**.
 
-## 📂 Estructura del Repositorio
+*   **Trigger**: Cloud Scheduler initiates the job daily at **07:00 AM (America/Santiago)**.
+*   **Job Execution**:
+    1.  The container starts and loads configuration from environment variables.
+    2.  It retrieves the current state (`watermarks.json`) from GCS.
+    3.  It performs incremental extraction for high-volume tables (`donaciones`, `gastos`, `casos`) and snapshot extraction for catalogs.
+    4.  Upon successful upload to GCS, it updates the watermark state.
+    5.  (Connected Integration) Dataform executes downstream transformations.
+*   **Monitoring**: Execution logs, data volume metrics, and error traces are captured in Cloud Logging.
 
-```text
-/
-├── src/                 # 🐍 Lógica de Extracción (Python Modular)
-│   ├── etl/             # Config, Connect, Extract, Transform, Load
-│   └── main.py          # Orquestador del pipeline
-├── dataform/            # 🏗️ Lógica de Transformación (SQLX)
-│   ├── definitions/     # Modelos (Raw, Silver, Gold, Assertions)
-│   └── workflow.yaml    # Configuración del pipeline
-├── scripts/             # 🛠️ Herramientas de Mantenimiento (Backfill, Cleaning)
-├── docs/                # 📚 Documentación Técnica Detallada
-└── .github/             # 🤖 CI/CD Pipelines (Integración con GCP)
-```
+## Visualization and Documentation
 
-## 📚 Documentación Detallada
+*   **[Looker Studio Dashboard](https://lookerstudio.google.com/u/0/reporting/cb2392ff-d151-4b16-9bc3-49df863ced2c/page/p_97ri4w4xyd)**
+    *   Displays the final output of the pipeline. Evaluators can verify data freshness, aggregations, and the practical application of the Gold/Silver data layers.
 
-Si deseas profundizar en los aspectos técnicos, consulta:
+*   **[Architecture & Systems Diagram (Miro)](https://miro.com/welcomeonboard/UkduTDRzZFZlSW9xek1EL2dwRG1XVG8rQmRvcVFWbGhRMEhjVHBmUnU5MSs0ek5LdlZxSHcyOE15UXNydlNkOHQ1N3ROTEdEd2dQOVhEcDN4MlF6S0d0WEJySWE5c2xhNGNnVHB1WXRGNGl2OWJZNlhydU00bWVoOFRZK095bkNhWWluRVAxeXRuUUgwWDl3Mk1qRGVRPT0hdjE=?share_link_id=538214555000)**
+    *   Detailed visual representation of the system components, data flow, and interactions between the CRM, the ETL pipeline, and the visualization layer.
 
-*   **[🏗️ Arquitectura y Estrategias de Carga](docs/ARCHITECTURE.md)** (Incremental vs Full Load).
-*   **[🛠️ Manual de Operaciones y Mantenimiento](docs/MAINTENANCE.md)**.
-*   **[🚑 Log de Resolución de Problemas](docs/TROUBLESHOOTING.md)**.
+## Key Technical Decisions
 
----
+*   **Cloud Run Jobs for ETL**: Selected for its serverless nature. Start-up time is fast, and billing is per-second. Unlike Cloud Functions, it handles longer validation timeouts and memory-intensive batch processing gracefully. Unlike Dataproc, it requires zero cluster management.
+*   **BigQuery**: Chosen for its separation of storage and compute. It allows querying raw Parquet files directly from GCS without loading costs, and scales effortlessly for analytical queries.
+*   **Dataform**: Provides software engineering best practices to SQL transformation (CI/CD, version control, dependency management, and assertion testing), superior to managing raw SQL scripts scheduled via cron.
+*   **Incremental Loading with Persistent State**: Essential for scaling. Instead of reloading the entire dataset daily, the system tracks the `last_modified_at` timestamp. This reduces Supabase egress costs and processing time from minutes to seconds for daily deltas.
 
-## 🚀 Cómo Ejecutar (Local)
+## Platform Status
 
-1.  **Clonar y configurar entorno:**
-    ```bash
-    git clone https://github.com/vladmarinovich/Data-platform-fsp-portafolio.git
-    cd Data-platform-fsp-portafolio
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
-    ```
+*   **Implemented**:
+    *   ✅ Full extraction pipeline (Python/Docker).
+    *   ✅ Storage layer (GCS Parquet + BigQuery Raw).
+    *   ✅ Transformation logic (Dataform Silver Layer).
+    *   ✅ Orchestration (Cloud Run + Scheduler).
+    *   ✅ Visualization (Basic Dashboard).
 
-2.  **Correr Pipeline de Ingesta:**
-    ```bash
-    python3 -m src.main
-    ```
+*   **Pending**:
+    *   🚧 Gold Layer modeling (Star Schema).
+    *   🚧 Advanced Data Quality Assertions (Gold Level).
+    *   🚧 ML Integration.
 
+## Next Steps (Roadmap)
 
----
-
-## 🚀 Automatización y Despliegue (ETL Pipeline)
-
-El proceso de ingesta ha sido contenerizado y automatizado para ejecutarse diariamente de forma desasistida ("Serverless").
-
-### 🏗️ Arquitectura de Despliegue
-1.  **Docker:** Empaquetamos la lógica Python (`src/`) y sus dependencias en una imagen ligera (`python:3.12-slim`).
-2.  **Artifact Registry:** Repositorio privado en GCP donde se almacenan las versiones de la imagen.
-3.  **Cloud Run Jobs:** Ejecuta el contenedor bajo demanda. Ideal para tareas batch que tienen un inicio y un fin.
-4.  **Cloud Scheduler:** "El Despertador". Activa el Job de Cloud Run todos los días a las **07:00 AM**.
-
-### 🔄 CI/CD Manual (Deployment)
-Para actualizar el código de producción, utilizamos **Google Cloud Build** para construir la imagen en la nube sin dependencias locales:
-
-```bash
-# 1. Construir y Subir Imagen (Build & Push)
-gcloud builds submit --tag us-central1-docker.pkg.dev/fsp-pipeline-project/spdp-repo/etl-runner:latest .
-
-# 2. El Cloud Run Job detectará automáticamente la etiqueta 'latest' en la próxima ejecución.
-# (Opcional) Para forzar una ejecución manual inmediata:
-gcloud run jobs execute etl-runner-job --region southamerica-west1
-```
-
----
-
-Diseñado y desarrollado por **Vladislav Marinovich**.  
-*Transformando datos en segundas oportunidades.* �
+*   **Gold Layer Implementation**: Develop final dimensional models optimized for BI tools.
+*   **Strict Assertions**: Implement row-count and distribution tests to block bad data before it reaches the Gold layer.
+*   **Vertex AI Integration**: Deploy ML models to predict donation trends based on historical data.
+*   **Agentic Interface**: Implement an LLM-based agent to allow natural language querying of the dataset.
+*   **API Exposure**: Create a lightweight API layer to serve processed metrics back to the operational CRM.
