@@ -21,9 +21,17 @@ def upload_incremental_partitions(df: pd.DataFrame, table_name: str, date_col: s
     if df.empty:
         return
 
-    # Asegurar que la columna fecha sea datetime
-    df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-    df = df.dropna(subset=[date_col])
+    # Detección y Manejo de Fechas Nulas
+    null_dates_count = df[date_col].isna().sum()
+    if null_dates_count > 0:
+        print(f"⚠️ ¡ADVERTENCIA! Se encontraron {null_dates_count} registros con fecha nula/inválida en '{table_name}'.")
+        print(f"   🔧 Asignando fecha por defecto: 1970-01-01 (para no perder datos).")
+        df[date_col] = df[date_col].fillna(pd.Timestamp("1970-01-01"))
+
+    # Fortificar tipo datetime (necesario si fillna convirtió a object mixto)
+    df[date_col] = pd.to_datetime(df[date_col])
+    
+    # df = df.dropna(subset=[date_col]) # COMENTADO: No borrar datos nunca más
     
     # Crear columna temporal de fecha (solo YYYY-MM-DD)
     df['_partition_date'] = df[date_col].dt.date

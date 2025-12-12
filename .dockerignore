@@ -1,0 +1,32 @@
+# --- Git ---
+.git
+.gitignore
+
+# --- Python ---
+__pycache__
+.venv
+venv
+*.pyc
+
+# --- Secrets (CRITICAL) ---
+.env
+*.json
+!package.json
+!package-lock.json
+
+# --- Dataform / Node ---
+node_modules
+
+# --- Cloud / Terraform ---
+.terraform
+*.tfstate
+*.tfstate.backup
+
+# --- IDE ---
+.vscode
+.idea
+.DS_Store
+
+# --- Local Data ---
+*.parquet
+*.csv
