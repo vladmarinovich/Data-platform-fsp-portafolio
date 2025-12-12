@@ -103,6 +103,32 @@ Si deseas profundizar en los aspectos técnicos, consulta:
     python3 -m src.main
     ```
 
+
 ---
+
+## 🚀 Automatización y Despliegue (ETL Pipeline)
+
+El proceso de ingesta ha sido contenerizado y automatizado para ejecutarse diariamente de forma desasistida ("Serverless").
+
+### 🏗️ Arquitectura de Despliegue
+1.  **Docker:** Empaquetamos la lógica Python (`src/`) y sus dependencias en una imagen ligera (`python:3.12-slim`).
+2.  **Artifact Registry:** Repositorio privado en GCP donde se almacenan las versiones de la imagen.
+3.  **Cloud Run Jobs:** Ejecuta el contenedor bajo demanda. Ideal para tareas batch que tienen un inicio y un fin.
+4.  **Cloud Scheduler:** "El Despertador". Activa el Job de Cloud Run todos los días a las **07:00 AM**.
+
+### 🔄 CI/CD Manual (Deployment)
+Para actualizar el código de producción, utilizamos **Google Cloud Build** para construir la imagen en la nube sin dependencias locales:
+
+```bash
+# 1. Construir y Subir Imagen (Build & Push)
+gcloud builds submit --tag us-central1-docker.pkg.dev/fsp-pipeline-project/spdp-repo/etl-runner:latest .
+
+# 2. El Cloud Run Job detectará automáticamente la etiqueta 'latest' en la próxima ejecución.
+# (Opcional) Para forzar una ejecución manual inmediata:
+gcloud run jobs execute etl-runner-job --region southamerica-west1
+```
+
+---
+
 Diseñado y desarrollado por **Vladislav Marinovich**.  
 *Transformando datos en segundas oportunidades.* �
