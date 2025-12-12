@@ -1,92 +1,92 @@
 # Salvando Patitas Data Platform
 
-A serverless ELT pipeline designed to ingest, transform, and analyze operational data for the *Salvando Patitas* foundation. The system integrates Supabase (PostgreSQL) sources into a Google Cloud Platform ecosystem, utilizing **Cloud Run Jobs** for orchestrated extraction and **BigQuery + Dataform** for data warehousing and transformations.
+Un pipeline ELT serverless diseñado para ingestar, transformar y analizar datos operativos para la fundación *Salvando Patitas*. El sistema integra fuentes de Supabase (PostgreSQL) en un ecosistema Google Cloud Platform, utilizando **Cloud Run Jobs** para la extracción orquestada y **BigQuery + Dataform** para el almacenamiento y transformaciones de datos.
 
-## Problem Statement
+## Definición del Problema
 
-The foundation faced challenges with operational data fragmentation across its custom CRM application. Accessing historical insights required manual data dumps, leading to inconsistencies and stale reporting. 
+La fundación enfrentaba desafíos con la fragmentación de datos operativos a través de su aplicación CRM personalizada. Acceder a insights históricos requería extracciones manuales de datos, lo que llevaba a inconsistencias y reportes desactualizados.
 
-This platform addresses these issues by:
-*   **Centralizing Data**: Unifying donation, expense, and case management records into a single analytical source of truth.
-*   **Ensuring Consistency**: Implementing robust incremental loading strategies to capture all data changes without redundant processing.
-*   **Operational Reliability**: automating the pipeline to run daily with minimal maintenance overhead, ensuring traceability and error handling.
+Esta plataforma aborda estos problemas mediante:
+*   **Centralización de Datos**: Unificación de registros de donaciones, gastos y gestión de casos en una única fuente analítica de verdad.
+*   **Consistencia**: Implementación de estrategias robustas de carga incremental para capturar todos los cambios de datos sin procesamiento redundante.
+*   **Confiabilidad Operativa**: Automatización del pipeline para ejecutarse diariamente con mínima sobrecarga de mantenimiento, asegurando trazabilidad y manejo de errores.
 
-## Architecture
+## Arquitectura
 
-The architecture follows a modular ELT pattern, leveraging serverless components to minimize operational costs while maximizing scalability.
+La arquitectura sigue un patrón ELT modular, aprovechando componentes serverless para minimizar costos operativos mientras se maximiza la escalabilidad.
 
 ```
 [Supabase (PostgreSQL)] 
        |
        | (Python ETL Container / Cloud Run Jobs)
        v
-[Google Cloud Storage] <--- (State Management / watermarks.json)
-(Zone: Raw / Parquet)
+[Google Cloud Storage] <--- (Gestión de Estado / watermarks.json)
+(Zona: Raw / Parquet)
        |
-       | (External Tables)
+       | (Tablas Externas)
        v
-[BigQuery: Raw Layer]
+[BigQuery: Capa Raw]
        |
-       | (Dataform Execution)
+       | (Ejecución Dataform)
        v
-[BigQuery: Silver Layer] ---> [Looker Studio Dashboard]
+[BigQuery: Capa Silver] ---> [Dashboard en Looker Studio]
 ```
 
-### Core Components
-1.  **Extraction (Python)**: A containerized Python application extracts data from Supabase.
-    *   **Incremental Tables**: Fetches only records modified since the last execution watermark (persisted in GCS).
-    *   **Snapshot Tables**: Performs full reloads for small dimension tables to ensure referential integrity.
-    *   **Ingestion**: Data is written to GCS in partitioned Parquet format for optimal query performance.
-2.  **Storage (GCS & BigQuery)**: Google Cloud Storage acts as the Data Lake. BigQuery mounts these files as External Tables (Raw Layer).
-3.  **Transformation (Dataform)**: SQLX pipelines transform Raw data into the Silver layer, applying cleaning, casting, and business logic.
-4.  **Orchestration**: Cloud Scheduler triggers the Cloud Run Job daily.
+### Componentes Principales
+1.  **Extracción (Python)**: Una aplicación Python contenerizada extrae datos desde Supabase.
+    *   **Tablas Incrementales**: Recupera solo registros modificados desde la última marca de agua de ejecución (persistida en GCS).
+    *   **Tablas Snapshot**: Realiza recargas completas para tablas de dimensión pequeñas para asegurar integridad referencial.
+    *   **Ingesta**: Los datos se escriben en GCS en formato Parquet particionado para un rendimiento de consulta óptimo.
+2.  **Almacenamiento (GCS & BigQuery)**: Google Cloud Storage actúa como el Data Lake. BigQuery monta estos archivos como Tablas Externas (Capa Raw).
+3.  **Transformación (Dataform)**: Pipelines SQLX transforman datos Raw hacia la capa Silver, aplicando limpieza, tipeo y lógica de negocio.
+4.  **Orquestación**: Cloud Scheduler dispara el Job de Cloud Run diariamente.
 
-## Production Execution
+## Ejecución en Producción
 
-The pipeline is deployed as a Docker container on **Google Cloud Run Jobs**.
+El pipeline está desplegado como un contenedor Docker en **Google Cloud Run Jobs**.
 
-*   **Trigger**: Cloud Scheduler initiates the job daily at **07:00 AM (America/Santiago)**.
-*   **Job Execution**:
-    1.  The container starts and loads configuration from environment variables.
-    2.  It retrieves the current state (`watermarks.json`) from GCS.
-    3.  It performs incremental extraction for high-volume tables (`donaciones`, `gastos`, `casos`) and snapshot extraction for catalogs.
-    4.  Upon successful upload to GCS, it updates the watermark state.
-    5.  (Connected Integration) Dataform executes downstream transformations.
-*   **Monitoring**: Execution logs, data volume metrics, and error traces are captured in Cloud Logging.
+*   **Trigger**: Cloud Scheduler inicia el trabajo diariamente a las **07:00 AM (America/Santiago)**.
+*   **Ejecución del Job**:
+    1.  El contenedor inicia y carga la configuración desde variables de entorno.
+    2.  Recupera el estado actual (`watermarks.json`) desde GCS.
+    3.  Realiza la extracción incremental para tablas de alto volumen (`donaciones`, `gastos`, `casos`) y extracción snapshot para catálogos.
+    4.  Tras la subida exitosa a GCS, actualiza el estado de la marca de agua.
+    5.  (Integración Conectada) Dataform ejecuta las transformaciones posteriores.
+*   **Monitoreo**: Logs de ejecución, métricas de volumen de datos y trazas de errores son capturados en Cloud Logging.
 
-## Visualization and Documentation
+## Visualización y Documentación
 
-*   **[Looker Studio Dashboard](https://lookerstudio.google.com/u/0/reporting/cb2392ff-d151-4b16-9bc3-49df863ced2c/page/p_97ri4w4xyd)**
-    *   Displays the final output of the pipeline. Evaluators can verify data freshness, aggregations, and the practical application of the Gold/Silver data layers.
+*   **[Dashboard en Looker Studio](https://lookerstudio.google.com/u/0/reporting/cb2392ff-d151-4b16-9bc3-49df863ced2c/page/p_97ri4w4xyd)**
+    *   Muestra la salida final del pipeline. Los evaluadores pueden verificar la frescura de los datos, agregaciones y la aplicación práctica de las capas de datos Gold/Silver.
 
-*   **[Architecture & Systems Diagram (Miro)](https://miro.com/welcomeonboard/UkduTDRzZFZlSW9xek1EL2dwRG1XVG8rQmRvcVFWbGhRMEhjVHBmUnU5MSs0ek5LdlZxSHcyOE15UXNydlNkOHQ1N3ROTEdEd2dQOVhEcDN4MlF6S0d0WEJySWE5c2xhNGNnVHB1WXRGNGl2OWJZNlhydU00bWVoOFRZK095bkNhWWluRVAxeXRuUUgwWDl3Mk1qRGVRPT0hdjE=?share_link_id=538214555000)**
-    *   Detailed visual representation of the system components, data flow, and interactions between the CRM, the ETL pipeline, and the visualization layer.
+*   **[Diagrama de Arquitectura y Sistemas (Miro)](https://miro.com/welcomeonboard/UkduTDRzZFZlSW9xek1EL2dwRG1XVG8rQmRvcVFWbGhRMEhjVHBmUnU5MSs0ek5LdlZxSHcyOE15UXNydlNkOHQ1N3ROTEdEd2dQOVhEcDN4MlF6S0d0WEJySWE5c2xhNGNnVHB1WXRGNGl2OWJZNlhydU00bWVoOFRZK095bkNhWWluRVAxeXRuUUgwWDl3Mk1qRGVRPT0hdjE=?share_link_id=538214555000)**
+    *   Representación visual detallada de los componentes del sistema, flujo de datos e interacciones entre el CRM, el pipeline ETL y la capa de visualización.
 
-## Key Technical Decisions
+## Decisiones Técnicas Clave
 
-*   **Cloud Run Jobs for ETL**: Selected for its serverless nature. Start-up time is fast, and billing is per-second. Unlike Cloud Functions, it handles longer validation timeouts and memory-intensive batch processing gracefully. Unlike Dataproc, it requires zero cluster management.
-*   **BigQuery**: Chosen for its separation of storage and compute. It allows querying raw Parquet files directly from GCS without loading costs, and scales effortlessly for analytical queries.
-*   **Dataform**: Provides software engineering best practices to SQL transformation (CI/CD, version control, dependency management, and assertion testing), superior to managing raw SQL scripts scheduled via cron.
-*   **Incremental Loading with Persistent State**: Essential for scaling. Instead of reloading the entire dataset daily, the system tracks the `last_modified_at` timestamp. This reduces Supabase egress costs and processing time from minutes to seconds for daily deltas.
+*   **Cloud Run Jobs para ETL**: Seleccionado por su naturaleza serverless. El tiempo de inicio es rápido y la facturación es por segundo. A diferencia de Cloud Functions, maneja tiempos de espera de validación más largos y procesamiento por lotes intensivo en memoria con gracia. A diferencia de Dataproc, requiere cero gestión de clústeres.
+*   **BigQuery**: Elegido por su separación de almacenamiento y cómputo. Permite consultar archivos Parquet crudos directamente desde GCS sin costos de carga, y escala sin esfuerzo para consultas analíticas.
+*   **Dataform**: Proporciona mejores prácticas de ingeniería de software a la transformación SQL (CI/CD, control de versiones, gestión de dependencias y pruebas de aserción), superior a la gestión de scripts SQL crudos programados vía cron.
+*   **Carga Incremental con Estado Persistente**: Esencial para escalar. En lugar de recargar todo el conjunto de datos diariamente, el sistema rastrea la marca de tiempo `last_modified_at`. Esto reduce los costos de egreso de Supabase y el tiempo de procesamiento de minutos a segundos para deltas diarios.
 
-## Platform Status
+## Estado de la Plataforma
 
-*   **Implemented**:
-    *   ✅ Full extraction pipeline (Python/Docker).
-    *   ✅ Storage layer (GCS Parquet + BigQuery Raw).
-    *   ✅ Transformation logic (Dataform Silver Layer).
-    *   ✅ Orchestration (Cloud Run + Scheduler).
-    *   ✅ Visualization (Basic Dashboard).
+*   **Implementado**:
+    *   ✅ Pipeline de extracción completo (Python/Docker).
+    *   ✅ Capa de almacenamiento (GCS Parquet + BigQuery Raw).
+    *   ✅ Lógica de transformación (Capa Silver Dataform).
+    *   ✅ Orquestación (Cloud Run + Scheduler).
+    *   ✅ Visualización (Dashboard Básico).
 
-*   **Pending**:
-    *   🚧 Gold Layer modeling (Star Schema).
-    *   🚧 Advanced Data Quality Assertions (Gold Level).
-    *   🚧 ML Integration.
+*   **Pendiente**:
+    *   🚧 Modelado de Capa Gold (Esquema Estrella).
+    *   🚧 Aserciones de Calidad de Datos Avanzadas (Nivel Gold).
+    *   🚧 Integración ML.
 
-## Next Steps (Roadmap)
+## Próximos Pasos (Roadmap)
 
-*   **Gold Layer Implementation**: Develop final dimensional models optimized for BI tools.
-*   **Strict Assertions**: Implement row-count and distribution tests to block bad data before it reaches the Gold layer.
-*   **Vertex AI Integration**: Deploy ML models to predict donation trends based on historical data.
-*   **Agentic Interface**: Implement an LLM-based agent to allow natural language querying of the dataset.
-*   **API Exposure**: Create a lightweight API layer to serve processed metrics back to the operational CRM.
+*   **Implementación Capa Gold**: Desarrollar modelos dimensionales finales optimizados para herramientas de BI.
+*   **Aserciones Estrictas**: Implementar pruebas de conteo de filas y distribución para bloquear datos incorrectos antes de que lleguen a la capa Gold.
+*   **Integración Vertex AI**: Desplegar modelos de ML para predecir tendencias de donación basadas en datos históricos.
+*   **Interfaz Agéntica**: Implementar un agente basado en LLM para permitir consultas en lenguaje natural del conjunto de datos.
+*   **Exposición API**: Crear una capa API ligera para servir métricas procesadas de vuelta al CRM operativo.
