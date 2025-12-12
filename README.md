@@ -15,6 +15,9 @@ Esta plataforma aborda estos problemas mediante:
 
 La arquitectura sigue un patrón ELT modular, aprovechando componentes serverless para minimizar costos operativos mientras se maximiza la escalabilidad.
 
+
+![Diagrama de Arquitectura](docs/img/Flujo%20Pipeline.jpeg)
+
 ```
 [Supabase (PostgreSQL)] 
        |
@@ -31,6 +34,12 @@ La arquitectura sigue un patrón ELT modular, aprovechando componentes serverles
        v
 [BigQuery: Capa Silver] ---> [Dashboard en Looker Studio]
 ```
+
+#### Modelo de Datos Operativo (CRM)
+Para dar contexto sobre la complejidad de la fuente de datos, este es el modelo relacional que nuestro pipeline ingesta y transforma:
+
+![Modelo de Datos Operativo](docs/img/Base%20de%20datos%20relacional.jpg)
+
 
 ### Componentes Principales
 1.  **Extracción (Python)**: Una aplicación Python contenerizada extrae datos desde Supabase.

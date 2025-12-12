@@ -2,7 +2,13 @@
 
 Este manual recopila los procedimientos estándar para operar, mantener y recuperar la plataforma de datos. Está diseñado para ser la referencia rápida ante incidentes.
 
+
 ---
+
+![Contexto Operativo del Pipeline](img/Flujo%20Pipeline.jpeg)
+
+---
+
 
 ## 🚦 Operación Diaria (Pipeline)
 

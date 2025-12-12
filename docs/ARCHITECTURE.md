@@ -8,14 +8,9 @@ Este documento describe la arquitectura técnica de nuestra plataforma, diseñad
 
 Hemos implementado una arquitectura de tres capas ("Medallion") para garantizar la calidad y gobernanza de los datos en cada etapa del proceso.
 
-```mermaid
-graph LR
-    A[Supabase Source] -->|Python Extract| B(GCS Bronze/Raw)
-    B -->|BigQuery External Tables| C(Raw Layer)
-    C -->|Dataform Clean| D(Final Silver)
-    D -->|Dataform Model| E(Gold Layer)
-    E -->|Dataform ML| F(Features ML)
-```
+
+![Arquitectura Detallada SPDP](img/Flujo%20Pipeline.jpeg)
+
 
 ### 🥉 Bronze Layer (Raw)
 *   **Fuente:** API transaccional de Supabase.
