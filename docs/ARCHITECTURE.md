@@ -21,7 +21,7 @@ Hemos implementado una arquitectura de tres capas ("Medallion") para garantizar 
 ### 🥈 Silver Layer (Clean & Trusted)
 *   **Herramienta:** Dataform (SQLX).
 *   **Transformaciones:**
-    *   **Deduplicación:** Uso de `ROW_NUMBER() OVER(PARTITION BY id ORDER BY updated_at DESC)` para obtener la última versión de cada registro.
+    *   **Deduplicación:** Uso de `ROW_NUMBER() OVER(PARTITION BY id ORDER BY last_modified_at DESC)` para obtener la última versión de cada registro.
     *   **Limpieza de Tipos:** Casteo seguro (`SAFE_CAST`) de strings a timestamps/numerics, tratamiento de nulos (`COALESCE`).
     *   **Integridad:** Validaciones básicas de claves foráneas.
 *   **Objetivo:** Tener datos limpios y listos para consultar, eliminando basura técnica.
