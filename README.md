@@ -106,3 +106,27 @@ El pipeline está desplegado como un contenedor Docker en **Google Cloud Run Job
 *   **Integración Vertex AI**: Desplegar modelos de ML para predecir tendencias de donación basadas en datos históricos.
 *   **Interfaz Agéntica**: Implementar un agente basado en LLM para permitir consultas en lenguaje natural del conjunto de datos.
 *   **Exposición API**: Crear una capa API ligera para servir métricas procesadas de vuelta al CRM operativo.
+
+## 📸 Galería de Operación
+
+Evidencia real de la plataforma en funcionamiento:
+
+| CI/CD Automatizado (Cloud Build) | Ejecución Serverless (Cloud Run) |
+|:--------------------------------:|:--------------------------------:|
+| ![CI/CD](docs/img/screenshots/cloud-build-sucess.png) | ![Cloud Run](docs/img/screenshots/cloud-run-success.png) |
+
+| Linaje de Datos (Dataform DAG) | Modelado Dimensional (BigQuery) |
+|:------------------------------:|:-------------------------------:|
+| ![Dataform DAG](docs/img/screenshots/dataform-dag.png) | ![BigQuery](docs/img/screenshots/bigquery-modelado.png) |
+
+<details>
+<summary>👀 Ver más capturas</summary>
+
+### Dataform en Acción
+![Dataform Run](docs/img/screenshots/dataform-en-accion.png)
+
+### Eficiencia de Costos
+> Costo operativo casi nulo gracias a Serverless.
+![Billing](docs/img/screenshots/facturacion.png)
+
+</details>
