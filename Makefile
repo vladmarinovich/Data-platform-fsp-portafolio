@@ -4,7 +4,7 @@
 # Variables
 PROJECT_ID ?= $(shell grep PROJECT_ID .env | cut -d '=' -f2)
 REGION ?= us-central1
-REPO_NAME ?= data-platform-repo
+REPO_NAME ?= spdp-repo
 IMAGE_NAME ?= etl-runner
 TAG ?= latest
 ARTIFACT_URL = $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPO_NAME)/$(IMAGE_NAME):$(TAG)
