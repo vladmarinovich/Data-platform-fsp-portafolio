@@ -38,7 +38,7 @@ La arquitectura sigue un patrón ELT modular, aprovechando componentes serverles
 #### Modelo de Datos Operativo (CRM)
 Para dar contexto sobre la complejidad de la fuente de datos, este es el modelo relacional que nuestro pipeline ingesta y transforma:
 
-![Modelo de Datos Operativo](docs/img/Base%20de%20datos%20relacional.jpg)
+![Modelo de Datos Operativo](docs/img/oltp-layer-modelo-de-base-de-datos-transacional.jpeg)
 
 
 ### Componentes Principales
@@ -46,6 +46,12 @@ Para dar contexto sobre la complejidad de la fuente de datos, este es el modelo 
     *   **Tablas Incrementales**: Recupera solo registros modificados desde la última marca de agua de ejecución (persistida en GCS).
     *   **Tablas Snapshot**: Realiza recargas completas para tablas de dimensión pequeñas para asegurar integridad referencial.
     *   **Ingesta**: Los datos se escriben en GCS en formato Parquet particionado para un rendimiento de consulta óptimo.
+    
+    *Flujo Interno del Extractor (Inicialización y Estado):*
+    ![ETL Init](docs/img/etl-unner-11-inicializacion-y-gestion-de-estado.jpeg)
+
+    *Orquestación de Tablas:*
+    ![ETL Orchestration](docs/img/etl-runner-12-orquestacion-de-tablas.jpeg)
 2.  **Almacenamiento (GCS & BigQuery)**: Google Cloud Storage actúa como el Data Lake. BigQuery monta estos archivos como Tablas Externas (Capa Raw).
 3.  **Transformación (Dataform)**: Pipelines SQLX transforman datos Raw hacia la capa Silver, aplicando limpieza, tipeo y lógica de negocio.
 4.  **Orquestación**: Cloud Scheduler dispara el Job de Cloud Run diariamente.

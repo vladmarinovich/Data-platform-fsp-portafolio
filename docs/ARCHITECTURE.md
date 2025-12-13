@@ -25,12 +25,22 @@ Hemos implementado una arquitectura de tres capas ("Medallion") para garantizar 
     *   **Limpieza de Tipos:** Casteo seguro (`SAFE_CAST`) de strings a timestamps/numerics, tratamiento de nulos (`COALESCE`).
     *   **Integridad:** Validaciones básicas de claves foráneas.
 *   **Objetivo:** Tener datos limpios y listos para consultar, eliminando basura técnica.
+    
+    ![Silver Layer Logic](img/dataform-modelo-logico%20de-transformación-y-calidad-de-datos-silver-layer.jpg)
 
 ### 🥇 Gold Layer (Business Ready)
 *   **Modelo:** Esquema Estrella (Star Schema) modificado.
+    
+    *Modelo Dimensional (Dimensions):*
+    ![Gold Dimensions](img/gold-layer-dimensional-model-dims.jpg)
+    
+    *Modelo de Hechos (Facts):*
+    ![Gold Facts](img/gold-fact-tables-modelo-analitico-de-hechos.jpg)
     *   **Dimensions (DIM):** `dim_casos`, `dim_donantes`, `dim_proveedores`, `dim_hogar`. Tablas desnormalizadas con atributos descriptivos.
     *   **Facts (FACT):** `facts_donaciones`, `facts_gastos`. Tablas transaccionales enriquecidas con claves sustitutas.
     *   **Features (FEAT):** `feat_donaciones`, `feat_gastos`. Ingeniería de características específica para alimentar modelos de Machine Learning (aggregations, rolling windows, RFM scoring).
+    
+    ![Feature Store](img/feat-layer-feature-store-analitico-ml-y-scoring.jpg)
 
 ---
 
@@ -47,6 +57,11 @@ El corazón de la ingesta es un script modular optimizado para latencia y costo.
 *   **Scope:** `proveedores`, `hogar_de_paso`.
 *   **Lógica:** Descarga completa (`Full Refresh`) en cada ejecución.
 *   **Persistencia:** Sobrescritura en ruta `latest/` para garantizar unicidad sin lógica compleja de deduplicación.
+
+### 🚀 CI/CD & Despliegue
+Flujo automatizado de construcción y publicación del artefacto Docker:
+
+![Deployment Flow](img/deployment-flow-CI-CD-build-y-publish.jpeg)
 
 ---
 
