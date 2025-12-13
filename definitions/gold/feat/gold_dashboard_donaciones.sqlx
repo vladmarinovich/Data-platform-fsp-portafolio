@@ -27,8 +27,8 @@ WITH base AS (
     dd.canal_origen,
     dd.consentimiento
 
-  FROM `fsp-pipeline-project.fsp_gold.gold_donaciones` d
-  LEFT JOIN `fsp-pipeline-project.fsp_gold.gold_dim_donantes` dd
+  FROM ${ref("gold_donaciones")} d
+  LEFT JOIN ${ref("gold_dim_donantes")} dd
     ON d.id_donante = dd.id_donante
 ),
 

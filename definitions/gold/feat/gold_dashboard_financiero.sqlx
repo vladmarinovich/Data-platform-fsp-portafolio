@@ -23,7 +23,7 @@ WITH movimientos AS (
     FALSE AS es_gasto_critico,
     FALSE AS sobrepresupuesto,
     don.tamano_donacion AS categoria_monto
-  FROM `fsp-pipeline-project.fsp_gold.gold_dashboard_donaciones` don
+  FROM ${ref("gold_dashboard_donaciones")} don
 
   UNION ALL
 
@@ -38,7 +38,7 @@ WITH movimientos AS (
     gas.es_gasto_critico,
     gas.sobrepresupuesto,
     gas.categoria_monto
-  FROM `fsp-pipeline-project.fsp_gold.gold_dashboard_gastos` gas
+  FROM ${ref("gold_dashboard_gastos")} gas
 ),
 
 -- =======================================================

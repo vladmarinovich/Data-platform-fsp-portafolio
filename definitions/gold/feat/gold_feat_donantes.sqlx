@@ -8,7 +8,7 @@ config {
 
 WITH donaciones AS (
   SELECT *
-  FROM `fsp-pipeline-project.fsp_gold.gold_donaciones`
+  FROM ${ref("gold_donaciones")}
 ),
 
 agg AS (
@@ -60,7 +60,7 @@ agg AS (
     MAX(d.monto) AS monto_maximo,
     MIN(d.monto) AS monto_minimo
 
-  FROM `fsp-pipeline-project.fsp_gold.gold_dim_donantes` dd
+  FROM ${ref("gold_dim_donantes")} dd
   LEFT JOIN donaciones d
     ON dd.id_donante = d.id_donante
 

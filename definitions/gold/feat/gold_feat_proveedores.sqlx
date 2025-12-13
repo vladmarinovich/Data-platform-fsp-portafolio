@@ -8,7 +8,7 @@ config {
 
 WITH gastos AS (
   SELECT *
-  FROM `fsp-pipeline-project.fsp_gold.gold_gastos`
+  FROM ${ref("gold_gastos")}
 ),
 
 agg AS (
@@ -50,7 +50,7 @@ agg AS (
       SUM(SUM(g.monto)) OVER ()
     ) AS porcentaje_dependencia_fsp
 
-  FROM `fsp-pipeline-project.fsp_gold.gold_dim_proveedores` p
+  FROM ${ref("gold_dim_proveedores")} p
   LEFT JOIN gastos g
     ON g.id_proveedor = p.id_proveedor
 

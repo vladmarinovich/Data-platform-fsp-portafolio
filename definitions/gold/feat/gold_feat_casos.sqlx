@@ -8,17 +8,17 @@ config {
 
 WITH casos AS (
   SELECT *
-  FROM `fsp-pipeline-project.fsp_gold.gold_dim_casos`
+  FROM ${ref("gold_dim_casos")}
 ),
 
 donaciones AS (
   SELECT *
-  FROM `fsp-pipeline-project.fsp_gold.gold_donaciones`
+  FROM ${ref("gold_donaciones")}
 ),
 
 gastos AS (
   SELECT *
-  FROM `fsp-pipeline-project.fsp_gold.gold_gastos`
+  FROM ${ref("gold_gastos")}
 )
 
 SELECT
