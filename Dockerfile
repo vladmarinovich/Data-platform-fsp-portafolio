@@ -17,7 +17,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el código fuente
 COPY src/ ./src/
-COPY dataform/ ./dataform/
 # (Opcional) Copiar docs o scripts si son necesarios en runtime, pero para el ETL solo necesitamos src
 
 # Usuario no-root por seguridad

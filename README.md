@@ -16,7 +16,7 @@ Esta plataforma aborda estos problemas mediante:
 La arquitectura sigue un patrón ELT modular, aprovechando componentes serverless para minimizar costos operativos mientras se maximiza la escalabilidad.
 
 
-![Diagrama de Arquitectura](docs/img/Flujo%20Pipeline.jpeg)
+![Diagrama de Arquitectura](docs/img/runtime-flow.jpeg)
 
 ```
 [Supabase (PostgreSQL)] 
@@ -38,7 +38,7 @@ La arquitectura sigue un patrón ELT modular, aprovechando componentes serverles
 #### Modelo de Datos Operativo (CRM)
 Para dar contexto sobre la complejidad de la fuente de datos, este es el modelo relacional que nuestro pipeline ingesta y transforma:
 
-![Modelo de Datos Operativo](docs/img/oltp-layer-modelo-de-base-de-datos-transacional.jpeg)
+![Modelo de Datos Operativo](docs/img/oltp-model.jpeg)
 
 
 ### Componentes Principales
@@ -48,10 +48,10 @@ Para dar contexto sobre la complejidad de la fuente de datos, este es el modelo 
     *   **Ingesta**: Los datos se escriben en GCS en formato Parquet particionado para un rendimiento de consulta óptimo.
     
     *Flujo Interno del Extractor (Inicialización y Estado):*
-    ![ETL Init](docs/img/etl-unner-11-inicializacion-y-gestion-de-estado.jpeg)
+    ![ETL Init](docs/img/etl-runner-init.jpeg)
 
     *Orquestación de Tablas:*
-    ![ETL Orchestration](docs/img/etl-runner-12-orquestacion-de-tablas.jpeg)
+    ![ETL Orchestration](docs/img/etl-runner-orchestration.jpeg)
 2.  **Almacenamiento (GCS & BigQuery)**: Google Cloud Storage actúa como el Data Lake. BigQuery monta estos archivos como Tablas Externas (Capa Raw).
 3.  **Transformación (Dataform)**: Pipelines SQLX transforman datos Raw hacia la capa Silver, aplicando limpieza, tipeo y lógica de negocio.
 4.  **Orquestación**: Cloud Scheduler dispara el Job de Cloud Run diariamente.
@@ -92,9 +92,9 @@ El pipeline está desplegado como un contenedor Docker en **Google Cloud Run Job
     *   ✅ Lógica de transformación (Capa Silver Dataform).
     *   ✅ Orquestación (Cloud Run + Scheduler).
     *   ✅ Visualización (Dashboard Básico).
+    *   ✅ Modelado de Capa Gold (Esquema Estrella) + Feature Store.
 
 *   **Pendiente**:
-    *   🚧 Modelado de Capa Gold (Esquema Estrella).
     *   🚧 Aserciones de Calidad de Datos Avanzadas (Nivel Gold).
     *   🚧 Integración ML.
 

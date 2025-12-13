@@ -5,7 +5,7 @@ Este manual recopila los procedimientos estándar para operar, mantener y recupe
 
 ---
 
-![Contexto Operativo del Pipeline](img/Flujo%20Pipeline.jpeg)
+![Contexto Operativo del Pipeline](img/runtime-flow.jpeg)
 
 ---
 
@@ -17,9 +17,8 @@ La plataforma se orquesta automáticamente. Sin embargo, para ejecuciones manual
 ### Ejecutar Ingesta (Extract & Load)
 Para traer nuevos datos desde Supabase hacia GCS/BigQuery Raw:
 ```bash
-# Desde la raíz del proyecto
-source .venv/bin/activate
-python3 -m src.main
+make run
+# O manualmente: python3 -m src.main
 ```
 
 ### Ejecutar Transformación (Dataform)
@@ -48,18 +47,21 @@ Para procesar Raw -> Silver -> Gold en Google Cloud:
 Si una tabla Raw se corrompe (ej. mezcla de tipos de datos int/string incompatibles):
 1.  **Limpiar GCS:**
     ```bash
-    python3 scripts/clean_casos.py  # Ejemplo para tabla casos
+    python3 scripts/maintenance.py purge --table casos
     ```
     *Esto borra todos los parquets y reinicia el watermark a fecha cero.*
-2.  **Recargar:** Ejecutar `src.main` para bajar todo el histórico de nuevo.
+2.  **Recargar:** Ejecutar `make run` para bajar todo el histórico de nuevo.
 3.  **Procesar:** Ejecutar Dataform con la opción "Run with Full Refresh" para recrear las tablas Silver/Gold.
 
 ### 3. Reprocesar Datos (Rewind ⏪)
 Si necesitas volver a cargar los datos de los últimos 3 días (ej. porque se corrigió un bug en origen):
-1.  Editar `scripts/rewind_watermark.py` con la fecha deseada.
-2.  Ejecutar:
+1.  Ejecutar reset:
     ```bash
-    python3 scripts/rewind_watermark.py
+    python3 scripts/maintenance.py reset --table donaciones --date 2024-01-01
+    ```
+2.  Ejecutar el pipeline:
+    ```bash
+    make run
     ```
 3.  Ejecutar el pipeline de ingesta normal.
 

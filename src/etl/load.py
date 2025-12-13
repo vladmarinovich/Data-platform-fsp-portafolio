@@ -21,17 +21,18 @@ def upload_incremental_partitions(df: pd.DataFrame, table_name: str, date_col: s
     if df.empty:
         return
 
-    # Detección y Manejo de Fechas Nulas
+    # 1. Convertir a datetime forzando UTC y coerción de errores
+    # Esto asegura que todo tenga zona horaria (UTC) y los errores sean NaT
+    df[date_col] = pd.to_datetime(df[date_col], errors='coerce', utc=True)
+    
+    # 2. Detección y Manejo de Fechas Nulas (NaT)
     null_dates_count = df[date_col].isna().sum()
     if null_dates_count > 0:
         print(f"⚠️ ¡ADVERTENCIA! Se encontraron {null_dates_count} registros con fecha nula/inválida en '{table_name}'.")
-        print(f"   🔧 Asignando fecha por defecto: 1970-01-01 (para no perder datos).")
-        df[date_col] = df[date_col].fillna(pd.Timestamp("1970-01-01"))
-
-    # Fortificar tipo datetime (necesario si fillna convirtió a object mixto)
-    df[date_col] = pd.to_datetime(df[date_col])
-    
-    # df = df.dropna(subset=[date_col]) # COMENTADO: No borrar datos nunca más
+        print(f"   🔧 Asignando fecha por defecto: 1970-01-01 UTC (para no perder datos).")
+        # Usamos un Timestamp CON zona horaria para coincidir con el resto
+        default_date = pd.Timestamp("1970-01-01").tz_localize("UTC")
+        df[date_col] = df[date_col].fillna(default_date)
     
     # Crear columna temporal de fecha (solo YYYY-MM-DD)
     df['_partition_date'] = df[date_col].dt.date

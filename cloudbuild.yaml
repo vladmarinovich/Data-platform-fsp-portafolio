@@ -1,0 +1,25 @@
+steps:
+  # 1. Construir la imagen Docker usando la caché para acelerar
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args: ['-c', 'docker build --cache-from us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:latest -t us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:$COMMIT_SHA -t us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:latest .']
+
+  # 2. Subir (Push) la imagen a Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:latest']
+
+  # 3. (Opcional) Actualizar el Job de Cloud Run usando la nueva imagen
+  # Descomentar si quieres Continuous Deployment (CD) completo
+  # - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  #   entrypoint: 'gcloud'
+  #   args: ['run', 'jobs', 'update', 'etl-runner-job', '--image', 'us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:latest', '--region', 'us-central1']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/data-platform-repo/etl-runner:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
