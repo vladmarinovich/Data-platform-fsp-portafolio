@@ -60,6 +60,7 @@ Para dar contexto sobre la complejidad de la fuente de datos, este es el modelo 
 
 El pipeline está desplegado como un contenedor Docker en **Google Cloud Run Jobs**.
 
+*   **Despliegue (CI/CD)**: Cada push a `main` activa **Cloud Build**, que reconstruye la imagen y la publica en Artifact Registry automáticamente.
 *   **Trigger**: Cloud Scheduler inicia el trabajo diariamente a las **07:00 AM (America/Santiago)**.
 *   **Ejecución del Job**:
     1.  El contenedor inicia y carga la configuración desde variables de entorno.
