@@ -1,115 +1,72 @@
-# Salvando Patitas Data Platform
+# 🐾 Salvando Patitas Data Platform
 
-Un pipeline ELT serverless diseñado para ingestar, transformar y analizar datos operativos para la fundación *Salvando Patitas*. El sistema integra fuentes de Supabase (PostgreSQL) en un ecosistema Google Cloud Platform, utilizando **Cloud Run Jobs** para la extracción orquestada y **BigQuery + Dataform** para el almacenamiento y transformaciones de datos.
+[![Notion](https://img.shields.io/badge/Notion-Documentación_Oficial-000000?style=for-the-badge&logo=notion&logoColor=white)](https://notion.so/tu-enlace-aqui)
+[![Miro](https://img.shields.io/badge/Miro-Diagramas_de_Arquitectura-050038?style=for-the-badge&logo=miro&logoColor=white)](https://miro.com/welcomeonboard/UkduTDRzZFZlSW9xek1EL2dwRG1XVG8rQmRvcVFWbGhRMEhjVHBmUnU5MSs0ek5LdlZxSHcyOE15UXNydlNkOHQ1N3ROTEdEd2dQOVhEcDN4MlF6S0d0WEJySWE5c2xhNGNnVHB1WXRGNGl2OWJZNlhydU00bWVoOFRZK095bkNhWWluRVAxeXRuUUgwWDl3Mk1qRGVRPT0hdjE=?share_link_id=538214555000)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-Cloud_Build-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://console.cloud.google.com/cloud-build)
 
-## Definición del Problema
+> 🚀 **Modern Data Platform** serverless y escalable para la fundación *Salvando Patitas*. Centraliza, limpia y transforma datos operativos dispersos en insights de alto valor.
 
-La fundación enfrentaba desafíos con la fragmentación de datos operativos a través de su aplicación CRM personalizada. Acceder a insights históricos requería extracciones manuales de datos, lo que llevaba a inconsistencias y reportes desactualizados.
+---
 
-Esta plataforma aborda estos problemas mediante:
-*   **Centralización de Datos**: Unificación de registros de donaciones, gastos y gestión de casos en una única fuente analítica de verdad.
-*   **Consistencia**: Implementación de estrategias robustas de carga incremental para capturar todos los cambios de datos sin procesamiento redundante.
-*   **Confiabilidad Operativa**: Automatización del pipeline para ejecutarse diariamente con mínima sobrecarga de mantenimiento, asegurando trazabilidad y manejo de errores.
+## 🏗️ Arquitectura de Alto Nivel
 
-## Arquitectura
+El sistema implementa un **Lakehouse Serverless** en BigQuery, desacoplando ingesta (Python/Cloud Run) de transformación (Dataform), orquestado automáticamente para procesamiento diario.
 
-La arquitectura sigue un patrón ELT modular, aprovechando componentes serverless para minimizar costos operativos mientras se maximiza la escalabilidad.
+![Arquitectura](docs/img/runtime-flow.jpeg)
 
+---
 
-![Diagrama de Arquitectura](docs/img/runtime-flow.jpeg)
+## 📚 Mapa de Documentación
 
-```
-[Supabase (PostgreSQL)] 
-       |
-       | (Python ETL Container / Cloud Run Jobs)
-       v
-[Google Cloud Storage] <--- (Gestión de Estado / watermarks.json)
-(Zona: Raw / Parquet)
-       |
-       | (Tablas Externas)
-       v
-[BigQuery: Capa Raw]
-       |
-       | (Ejecución Dataform)
-       v
-[BigQuery: Capa Silver] ---> [Dashboard en Looker Studio]
-```
+Toda la documentación técnica detallada vive dentro del repositorio y en Notion. Usa esta guía para navegar:
 
-#### Modelo de Datos Operativo (CRM)
-Para dar contexto sobre la complejidad de la fuente de datos, este es el modelo relacional que nuestro pipeline ingesta y transforma:
+| ¿Qué buscas? | 📄 Archivo Local | 🔗 Enlace Notion (Profundo) |
+| :--- | :--- | :--- |
+| **Diseño y Modelo de Datos** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | [Ver Capas Bronze/Silver/Gold](https://notion.so/tu-enlace-a-arquitectura) |
+| **Manual de Operaciones** | [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) | [Ver Runbook & Comandos](https://notion.so/tu-enlace-a-runbook) |
+| **Solución de Errores** | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | [Ver Log de Problemas](https://notion.so/tu-enlace-a-troubleshooting) |
+| **Galería de Evidencia** | *Ver abajo* 👇 | [Ver Screenshots Reales](https://notion.so/tu-enlace-a-galeria) |
 
-![Modelo de Datos Operativo](docs/img/oltp-model.jpeg)
+---
 
+## ⚡ Quick Start
 
-### Componentes Principales
-1.  **Extracción (Python)**: Una aplicación Python contenerizada extrae datos desde Supabase.
-    *   **Tablas Incrementales**: Recupera solo registros modificados desde la última marca de agua de ejecución (persistida en GCS).
-    *   **Tablas Snapshot**: Realiza recargas completas para tablas de dimensión pequeñas para asegurar integridad referencial.
-    *   **Ingesta**: Los datos se escriben en GCS en formato Parquet particionado para un rendimiento de consulta óptimo.
-    
-    *Flujo Interno del Extractor (Inicialización y Estado):*
-    ![ETL Init](docs/img/etl-runner-init.jpeg)
+Para levantar el entorno de desarrollo localmente:
 
-    *Orquestación de Tablas:*
-    ![ETL Orchestration](docs/img/etl-runner-orchestration.jpeg)
-2.  **Almacenamiento (GCS & BigQuery)**: Google Cloud Storage actúa como el Data Lake. BigQuery monta estos archivos como Tablas Externas (Capa Raw).
-3.  **Transformación (Dataform)**: Pipelines SQLX transforman datos Raw hacia la capa Silver, aplicando limpieza, tipeo y lógica de negocio.
-4.  **Orquestación**: Cloud Scheduler dispara el Job de Cloud Run diariamente.
+1.  **Requisitos**: Python 3.12+, Docker, Google Cloud SDK.
+2.  **Configuración**:
+    ```bash
+    make setup      # Instala dependencias y prepara .env
+    ```
+3.  **Ejecución Local (ETL)**:
+    ```bash
+    make run        # Ejecuta el pipeline completo en Docker local
+    ```
+4.  **Despliegue a Producción**:
+    ```bash
+    make deploy     # (Manual) Sube a Cloud Run. CI/CD lo hace automático al push.
+    ```
 
-## Ejecución en Producción
+> *Para ver todos los comandos disponibles y cómo resetear datos, consulta [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md).*
 
-El pipeline está desplegado como un contenedor Docker en **Google Cloud Run Jobs**.
+---
 
-*   **Despliegue (CI/CD)**: Cada push a `main` activa **Cloud Build**, que reconstruye la imagen y la publica en Artifact Registry automáticamente.
-*   **Trigger**: Cloud Scheduler inicia el trabajo diariamente a las **07:00 AM (America/Santiago)**.
-*   **Ejecución del Job**:
-    1.  El contenedor inicia y carga la configuración desde variables de entorno.
-    2.  Recupera el estado actual (`watermarks.json`) desde GCS.
-    3.  Realiza la extracción incremental para tablas de alto volumen (`donaciones`, `gastos`, `casos`) y extracción snapshot para catálogos.
-    4.  Tras la subida exitosa a GCS, actualiza el estado de la marca de agua.
-    5.  (Integración Conectada) Dataform ejecuta las transformaciones posteriores.
-*   **Monitoreo**: Logs de ejecución, métricas de volumen de datos y trazas de errores son capturados en Cloud Logging.
+## 🧪 Estado del Proyecto
 
-## Visualización y Documentación
+| Componente | Estado | Tecnología |
+| :--- | :---: | :--- |
+| **Ingesta** | ✅ Activo | Python, Pandas, Cloud Run Jobs |
+| **Data Lake** | ✅ Activo | Google Cloud Storage (Parquet) |
+| **Warehouse** | ✅ Activo | BigQuery (External Tables) |
+| **Transformación** | ✅ Activo | Dataform (SQLX), Medallion Architecture |
+| **Orquestación** | ✅ Activo | Cloud Scheduler, Watermarks State |
+| **CI/CD** | ✅ Activo | Cloud Build, Artifact Registry |
 
-*   **[Dashboard en Looker Studio](https://lookerstudio.google.com/u/0/reporting/cb2392ff-d151-4b16-9bc3-49df863ced2c/page/p_97ri4w4xyd)**
-    *   Muestra la salida final del pipeline. Los evaluadores pueden verificar la frescura de los datos, agregaciones y la aplicación práctica de las capas de datos Gold/Silver.
-
-*   **[Diagrama de Arquitectura y Sistemas (Miro)](https://miro.com/welcomeonboard/UkduTDRzZFZlSW9xek1EL2dwRG1XVG8rQmRvcVFWbGhRMEhjVHBmUnU5MSs0ek5LdlZxSHcyOE15UXNydlNkOHQ1N3ROTEdEd2dQOVhEcDN4MlF6S0d0WEJySWE5c2xhNGNnVHB1WXRGNGl2OWJZNlhydU00bWVoOFRZK095bkNhWWluRVAxeXRuUUgwWDl3Mk1qRGVRPT0hdjE=?share_link_id=538214555000)**
-    *   Representación visual detallada de los componentes del sistema, flujo de datos e interacciones entre el CRM, el pipeline ETL y la capa de visualización.
-
-## Decisiones Técnicas Clave
-
-*   **Cloud Run Jobs para ETL**: Seleccionado por su naturaleza serverless. El tiempo de inicio es rápido y la facturación es por segundo. A diferencia de Cloud Functions, maneja tiempos de espera de validación más largos y procesamiento por lotes intensivo en memoria con gracia. A diferencia de Dataproc, requiere cero gestión de clústeres.
-*   **BigQuery**: Elegido por su separación de almacenamiento y cómputo. Permite consultar archivos Parquet crudos directamente desde GCS sin costos de carga, y escala sin esfuerzo para consultas analíticas.
-*   **Dataform**: Proporciona mejores prácticas de ingeniería de software a la transformación SQL (CI/CD, control de versiones, gestión de dependencias y pruebas de aserción), superior a la gestión de scripts SQL crudos programados vía cron.
-*   **Carga Incremental con Estado Persistente**: Esencial para escalar. En lugar de recargar todo el conjunto de datos diariamente, el sistema rastrea la marca de tiempo `last_modified_at`. Esto reduce los costos de egreso de Supabase y el tiempo de procesamiento de minutos a segundos para deltas diarios.
-
-## Estado de la Plataforma
-
-*   **Implementado**:
-    *   ✅ Pipeline de extracción completo (Python/Docker).
-    *   ✅ Capa de almacenamiento (GCS Parquet + BigQuery Raw).
-    *   ✅ Lógica de transformación (Capa Silver Dataform).
-    *   ✅ Orquestación (Cloud Run + Scheduler).
-    *   ✅ Visualización (Dashboard Básico).
-    *   ✅ Modelado de Capa Gold (Esquema Estrella) + Feature Store.
-
-*   **Pendiente**:
-    *   🚧 Aserciones de Calidad de Datos Avanzadas (Nivel Gold).
-    *   🚧 Integración ML.
-
-## Próximos Pasos (Roadmap)
-
-*   **Implementación Capa Gold**: Desarrollar modelos dimensionales finales optimizados para herramientas de BI.
-*   **Aserciones Estrictas**: Implementar pruebas de conteo de filas y distribución para bloquear datos incorrectos antes de que lleguen a la capa Gold.
-*   **Integración Vertex AI**: Desplegar modelos de ML para predecir tendencias de donación basadas en datos históricos.
-*   **Interfaz Agéntica**: Implementar un agente basado en LLM para permitir consultas en lenguaje natural del conjunto de datos.
-*   **Exposición API**: Crear una capa API ligera para servir métricas procesadas de vuelta al CRM operativo.
+---
 
 ## 📸 Galería de Operación
 
-Evidencia real de la plataforma en funcionamiento:
+Evidencia real de la plataforma en funcionamiento productivo:
 
 | CI/CD Automatizado (Cloud Build) | Ejecución Serverless (Cloud Run) |
 |:--------------------------------:|:--------------------------------:|
@@ -120,13 +77,16 @@ Evidencia real de la plataforma en funcionamiento:
 | ![Dataform DAG](docs/img/screenshots/dataform-dag.png) | ![BigQuery](docs/img/screenshots/bigquery-modelado.png) |
 
 <details>
-<summary>👀 Ver más capturas</summary>
+<summary>👀 <strong>Ver más capturas (Costos, Ejecución)</strong></summary>
 
 ### Dataform en Acción
 ![Dataform Run](docs/img/screenshots/dataform-en-accion.png)
 
 ### Eficiencia de Costos
-> Costo operativo casi nulo gracias a Serverless.
+> Costo operativo optimizado (Nivel gratuito GCP).
 ![Billing](docs/img/screenshots/facturacion.png)
 
 </details>
+
+---
+Hecho con 💜 por Vladislav Marinovich.
