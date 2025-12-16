@@ -58,5 +58,5 @@ WITH base AS (
  FROM ${ref("fsp_silver", "silver_gastos")} g
   WHERE LOWER(g.estado) = 'pagado'
 )
-SELECT * FROM base  -- <--- ESTO ES LO QUE FALTA
+SELECT * FROM base 
 
