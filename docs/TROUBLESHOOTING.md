@@ -89,3 +89,14 @@ Esta bitácora documenta los desafíos técnicos encontrados durante la implemen
 1.  Ejecutar query de diagnóstico en BigQuery para identificar IDs culpables.
 2.  Corregir datos en origen (Supabase) o ajustar regla de negocio.
 
+
+### 8. 💸 Corrección de Lógica Financiera (Donaciones/Gastos)
+**Incidente:** Las métricas financieras (Ingresos/Egresos) en los dashboards estaban infladas.
+**Síntoma:** El total anual de donaciones no cuadraba con el extracto bancario.
+**Causa:** La capa Gold (`gold_facts_donaciones` y `gold_facts_gastos`) estaba sumando **todas** las transacciones, incluyendo las fallidas (`Rechazada`, `Fallida`, `Pendiente`).
+**Solución:**
+*   Se detectó que el problema era de lógica de negocio, no de infraestructura.
+*   Se aplicaron filtros estrictos en SQLX (Dataform) para la capa Gold:
+    *   **Donaciones:** `WHERE LOWER(estado) IN ('aprobada', 'completada')`
+    *   **Gastos:** `WHERE LOWER(estado) = 'pagado'`
+*   **Resultado:** Métricas 100% fidedignas sin necesidad de recrear tablas o borrar historial. La arquitectura Lakehouse permitió corregir la vista de negocio (Gold) sin tocar los datos crudos (Bronze/Silver).

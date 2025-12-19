@@ -37,7 +37,17 @@ def validate_and_transform(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
         if col == 'id' or col.endswith('_id'):
             df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
 
-    # 4. Textos: Forzar columnas de texto a String limpio
+    # 4. Booleanos: Forzar conversión a tipo 'boolean' (Nullable)
+    # Corrección para evitar: "Parquet column has type INT32 which does not match target BOOL"
+    bool_keywords = ['consentimiento', 'activo', 'is_', 'has_']
+    for col in df.columns:
+        if any(keyword in col.lower() for keyword in bool_keywords):
+            # Convertimos a 'boolean' de Pandas que soporta Nulos (pd.NA)
+            # Primero nos aseguramos que 1/0 sean True/False
+            df[col] = df[col].replace({1: True, 0: False, '1': True, '0': False})
+            df[col] = df[col].astype('boolean')
+
+    # 5. Textos: Forzar columnas de texto a String limpio
     text_keywords = [
         'nota', 'descrip', 'observ', 'coment', 'detalle', 'nombre', 
         'mail', 'tel', 'cel', 'phone', 'dir', 'address', 'ciudad', 

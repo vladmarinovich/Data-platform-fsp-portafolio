@@ -55,7 +55,7 @@ WITH base AS (
       DAY
     ) AS recencia_gasto_dias
 
- FROM ${ref("fsp_silver", "silver_gastos")} g
+  FROM ${ref("fsp_silver", "silver_gastos")} g
   WHERE LOWER(g.estado) = 'pagado'
 )
 SELECT * FROM base 
