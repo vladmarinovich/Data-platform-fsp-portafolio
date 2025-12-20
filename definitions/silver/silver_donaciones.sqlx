@@ -28,8 +28,11 @@ WITH base AS (
       ELSE SAFE_CAST(id_donante AS INT64)
     END AS id_donante,
     
-    -- FK Caso: siempre 541 (simplificado)
-    541 AS id_caso,
+    -- FK Caso
+    CASE
+      WHEN id_caso IS NULL THEN 541
+      ELSE SAFE_CAST(id_caso AS INT64)
+    END AS id_caso,
     
     TIMESTAMP_MICROS(CAST(DIV(fecha_donacion, 1000) AS INT64)) AS fecha_donacion,
     SAFE_CAST(monto AS FLOAT64) AS monto,
