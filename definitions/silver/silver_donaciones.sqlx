@@ -50,13 +50,15 @@ WITH base AS (
     END AS estado,
     
     TIMESTAMP_MICROS(CAST(DIV(created_at, 1000) AS INT64)) AS created_at,
-    TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)) AS last_modified_at,
+    COALESCE(
+      TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)),
+      TIMESTAMP_MICROS(CAST(DIV(created_at, 1000) AS INT64))
+    ) AS last_modified_at,
     CURRENT_TIMESTAMP() AS fecha_ingesta,
     'raw_donaciones' AS fuente
     
   FROM ${ref("raw_donaciones")}
   WHERE id_donacion IS NOT NULL
-    AND last_modified_at IS NOT NULL
 ),
 
 reglas AS (
