@@ -24,16 +24,13 @@ config {
   }
 }
 
--- =====================================================
--- BASE: Tipificación, reglas de negocio, normalización
--- =====================================================
 WITH base AS (
   SELECT
     SAFE_CAST(id_caso AS INT64) AS id_caso,
 
     CASE
       WHEN nombre_caso IS NULL THEN 'anonimo'
-      ELSE TRIM(LOWER(nombre_caso))
+      ELSE TRIM(LOWER(CAST(nombre_caso AS STRING)))
     END AS nombre_caso,
 
     -- Estado fijo según el diagrama
@@ -46,12 +43,12 @@ WITH base AS (
 
     CASE
       WHEN veterinaria IS NULL THEN 'cba'
-      ELSE LOWER(TRIM(veterinaria))
+      ELSE LOWER(TRIM(CAST(veterinaria AS STRING)))
     END AS veterinaria,
 
     CASE
       WHEN diagnostico IS NULL THEN 'reservado'
-      ELSE LOWER(TRIM(diagnostico))
+      ELSE LOWER(TRIM(CAST(diagnostico AS STRING)))
     END AS diagnostico,
 
     archivo,
@@ -68,7 +65,7 @@ WITH base AS (
 
     CASE
       WHEN ciudad IS NULL THEN 'bogota'
-      ELSE LOWER(TRIM(ciudad))
+      ELSE LOWER(TRIM(CAST(ciudad AS STRING)))
     END AS ciudad,
 
     TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)) AS last_modified_at,
@@ -80,9 +77,6 @@ WITH base AS (
     AND last_modified_at IS NOT NULL
 ),
 
--- =====================================================
--- DEDUPLICACIÓN POR PK (ROW_NUMBER)
--- =====================================================
 dedupe AS (
   SELECT *
   FROM base
@@ -92,9 +86,6 @@ dedupe AS (
   ) = 1
 )
 
--- =====================================================
--- RESULTADO FINAL (con incremental)
--- =====================================================
 SELECT *
 FROM dedupe
 ${ when(incremental(), `

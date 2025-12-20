@@ -29,7 +29,7 @@ WITH
     SAFE_CAST(id_donante AS INT64) AS id_donante,
     CASE
       WHEN donante IS NULL THEN 'Anonimo'
-      ELSE TRIM(UPPER(donante))
+      ELSE TRIM(UPPER(CAST(donante AS STRING)))
   END
     AS donante,
     CASE
@@ -39,32 +39,32 @@ WITH
     AS tipo_id,
     CASE
       WHEN identificacion IS NULL THEN 'nn'
-      ELSE LOWER(TRIM(identificacion))
+      ELSE LOWER(TRIM(CAST(identificacion AS STRING)))
   END
     AS identificacion,
     CASE
       WHEN correo IS NULL THEN 'desconocido'
-      ELSE LOWER(TRIM(correo))
+      ELSE LOWER(TRIM(CAST(correo AS STRING)))
   END
     AS correo,
     CASE
       WHEN ciudad IS NULL THEN 'bogota'
-      ELSE LOWER(TRIM(ciudad))
+      ELSE LOWER(TRIM(CAST(ciudad AS STRING)))
   END
     AS ciudad,
     CASE
       WHEN tipo_donante IS NULL THEN 'unico'
-      ELSE LOWER(TRIM(tipo_donante))
+      ELSE LOWER(TRIM(CAST(tipo_donante AS STRING)))
   END
     AS tipo_donante,
     CASE
       WHEN pais IS NULL THEN 'colombia'
-      ELSE UPPER(TRIM(pais))
+      ELSE UPPER(TRIM(CAST(pais AS STRING)))
   END
     AS pais,
     CASE
       WHEN canal_origen IS NULL THEN 'organico'
-      ELSE LOWER(TRIM(canal_origen))
+      ELSE LOWER(TRIM(CAST(canal_origen AS STRING)))
   END
     AS canal_origen,
     CASE
