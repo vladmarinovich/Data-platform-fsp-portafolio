@@ -1,6 +1,7 @@
 from datetime import datetime as dt
 import sys
 import os
+import pandas as pd
 
 # TRUCO: Agregar la carpeta raíz del proyecto al PATH de Python
 # Esto permite que 'import src.etl...' funcione aunque ejecutes el archivo directamente.
@@ -34,17 +35,10 @@ def run_incremental_pipeline(client, watermarks):
         # Convertimos a datetime para sacar el max real, luego a str ISO
         try:
             max_date = pd.to_datetime(df[date_col]).max()
-            today = dt.today()
-            
-            # PROTECCIÓN: Si la fecha máxima es futura, usamos 'hoy' como techo
-            # Esto evita que datos de prueba (ej: 2025) bloqueen la ingesta de datos reales (2024)
-            if max_date > today:
-                print(f"⚠️ Detectada fecha futura ({max_date.date()}). Ajustando watermark a hoy.")
-                max_date = today
-
             new_watermark = max_date.date().isoformat()
-        except:
+        except Exception as e:
             # Fallback seguro si falla la conversion
+            print(f"⚠️ Error calculando watermark: {e}")
             new_watermark = dt.today().date().isoformat()
 
         # 3. LOAD (Partitioned)

@@ -17,12 +17,12 @@ def reset_watermarks():
     """
     print(f"🔄 Reseteando watermarks en bucket: {RAW_BUCKET}")
     
-    # Estado inicial seguro (ej: inicio de 2024 o 2020)
+    # Estado inicial seguro (ej: inicio de 2023 para capturar todos los registros históricos)
     safe_state = {
-        "donaciones": "2024-01-01",
-        "gastos": "2024-01-01",
-        "casos": "2024-01-01",
-        "donantes": "2024-01-01"
+        "donaciones": "2023-01-01",
+        "gastos": "2023-01-01",
+        "casos": "2023-01-01",
+        "donantes": "2023-01-01"
     }
 
     client = get_storage_client()
@@ -34,7 +34,7 @@ def reset_watermarks():
         content_type='application/json'
     )
     
-    print("✅ Watermarks reseteados a 2024-01-01.")
+    print("✅ Watermarks reseteados a 2023-01-01.")
     print("👉 Ahora ejecuta 'make run' para re-procesar los datos.")
 
 if __name__ == "__main__":

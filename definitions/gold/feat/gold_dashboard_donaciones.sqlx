@@ -38,9 +38,9 @@ agg AS (
     -- =========================
     -- CAMPOS CALCULADOS FECHA
     -- =========================
-    EXTRACT(YEAR FROM fecha_donacion) AS anio,
-    EXTRACT(MONTH FROM fecha_donacion) AS mes,
-    FORMAT_DATE('%Y-%m', fecha_donacion) AS anio_mes,
+    EXTRACT(YEAR FROM DATE(fecha_donacion)) AS anio,
+    EXTRACT(MONTH FROM DATE(fecha_donacion)) AS mes,
+    FORMAT_DATE('%Y-%m', DATE(fecha_donacion)) AS anio_mes,
 
     -- =========================
     -- RFM
