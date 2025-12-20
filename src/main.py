@@ -34,13 +34,23 @@ def run_incremental_pipeline(client, watermarks):
         # Convertimos a datetime para sacar el max real, luego a str ISO
         try:
             max_date = pd.to_datetime(df[date_col]).max()
+            today = dt.today()
+            
+            # PROTECCIÓN: Si la fecha máxima es futura, usamos 'hoy' como techo
+            # Esto evita que datos de prueba (ej: 2025) bloqueen la ingesta de datos reales (2024)
+            if max_date > today:
+                print(f"⚠️ Detectada fecha futura ({max_date.date()}). Ajustando watermark a hoy.")
+                max_date = today
+
             new_watermark = max_date.date().isoformat()
         except:
             # Fallback seguro si falla la conversion
             new_watermark = dt.today().date().isoformat()
 
         # 3. LOAD (Partitioned)
-        upload_incremental_partitions(df, table, date_col)
+        # Usamos la fecha de negocio si existe, si no fallbck al watermark
+        partition_col = config.PARTITION_COLS.get(table, date_col)
+        upload_incremental_partitions(df, table, partition_col)
         
         # Actualizar estado
         if new_watermark > last_val:

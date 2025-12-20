@@ -28,6 +28,15 @@ INCREMENTAL_TABLES = {
     "casos": "last_modified_at"
 }
 
+# Columnas de fecha de negocio para particionar el Data Lake (Hive style)
+# Permite organizar los archivos por fecha real del evento, no por fecha de ingesta.
+PARTITION_COLS = {
+    "donaciones": "fecha_donacion",
+    "gastos": "fecha_pago",
+    "casos": "fecha_ingreso",
+    "donantes": "created_at"
+}
+
 # Estrategia: SNAPSHOT (Overwrite)
 # Se usa para catálogos o tablas maestras pequeñas.
 # Se descarga todo y se guarda en una ruta 'latest/' sobrescribiendo la anterior.

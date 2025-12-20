@@ -100,3 +100,18 @@ Esta bitácora documenta los desafíos técnicos encontrados durante la implemen
     *   **Donaciones:** `WHERE LOWER(estado) IN ('aprobada', 'completada')`
     *   **Gastos:** `WHERE LOWER(estado) = 'pagado'`
 *   **Resultado:** Métricas 100% fidedignas sin necesidad de recrear tablas o borrar historial. La arquitectura Lakehouse permitió corregir la vista de negocio (Gold) sin tocar los datos crudos (Bronze/Silver).
+
+## 9. Ingesta - Datos agrupados incorrectamente en fechas futuras (Diciembre 2025)
+**Problema:**
+Al visualizar los datos en BigQuery/Looker, solo aparecían registros con fecha "1 de Diciembre" o "19 de Diciembre", ignorando todo el historial de 2024.
+
+**Causa Raíz:**
+1.  **Watermark Corrupto:** Datos de prueba con fechas futuras (e.g., 2025) hicieron avanzar el watermark, impidiendo la lectura de datos pasados.
+2.  **Particionamiento por Sistema:** Se estaba particionando por  (fecha de sistema). Como los datos simulados se crearon/modificaron masivamente el mismo día, todos los archivos terminaron en la misma carpeta (), perdiendo la distribución temporal real.
+
+**Solución:**
+1.  **Protección de Watermark:** Se modificó  para impedir que el watermark avance más allá de la fecha actual (), ignorando fechas futuras.
+2.  **Particionamiento de Negocio:** Se modificó  y  para usar columnas de negocio (, , etc.) para estructurar las carpetas del Data Lake ().
+3.  **Reset & Limpieza:** Se limpió el bucket y se reseteó el estado a  para reprocesar todo el historial con la nueva estructura.
+
+**Estado:** Resuelto.

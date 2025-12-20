@@ -55,4 +55,4 @@ SELECT
 FROM
   `fsp-pipeline-project.fsp_silver.silver_donaciones` d
 WHERE
-  LOWER(d.estado) IN ('aprobada', 'completada')
+  LOWER(d.estado) IN ('aprobada', 'completada', 'exitoso')
