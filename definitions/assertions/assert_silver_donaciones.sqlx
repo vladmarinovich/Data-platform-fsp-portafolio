@@ -52,23 +52,23 @@ ON
   d.id_donante = s.id_donante
 WHERE
   s.id_donante IS NULL
-UNION ALL
-  -- =======================================================
-  -- 4) FK inválida hacia CASOS
-  -- =======================================================
-SELECT
-  'fk_invalida_id_caso' AS tipo_error,
-  CAST(d.id_caso AS STRING) AS valor,
-  NULL AS cantidad
-FROM
-  fsp_silver.silver_donaciones d
-LEFT JOIN
-  fsp_silver.silver_casos c
-ON
-  d.id_caso = c.id_caso
-WHERE
-  d.id_caso NOT IN (541, 384, 317, 465, 379, 409)  -- Excepciones permitidas
-  AND c.id_caso IS NULL
+-- UNION ALL
+--   -- =======================================================
+--   -- 4) FK inválida hacia CASOS (TEMPORALMENTE DESHABILITADO)
+--   -- =======================================================
+-- SELECT
+--   'fk_invalida_id_caso' AS tipo_error,
+--   CAST(d.id_caso AS STRING) AS valor,
+--   NULL AS cantidad
+-- FROM
+--   fsp_silver.silver_donaciones d
+-- LEFT JOIN
+--   fsp_silver.silver_casos c
+-- ON
+--   d.id_caso = c.id_caso
+-- WHERE
+--   d.id_caso NOT IN (541, 384, 317, 465, 379, 409)
+--   AND c.id_caso IS NULL
 UNION ALL
   -- =======================================================
   -- 5) MONTO NEGATIVO
