@@ -34,9 +34,10 @@ WITH base AS (
       ELSE SAFE_CAST(id_donante AS INT64)
     END AS id_donante,
 
-    -- FK Caso
+     -- FK Caso (541 si es NULL o no existe en silver_casos)
     CASE
       WHEN id_caso IS NULL THEN 541
+      WHEN SAFE_CAST(id_caso AS INT64) NOT IN (SELECT id_caso FROM ${ref("silver_casos")}) THEN 541
       ELSE SAFE_CAST(id_caso AS INT64)
     END AS id_caso,
 
