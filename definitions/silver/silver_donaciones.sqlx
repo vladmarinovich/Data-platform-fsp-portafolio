@@ -20,76 +20,50 @@ config {
   }
 }
 
--- ============================
--- BASE LIMPIA
--- ============================
 WITH base AS (
   SELECT
-    -- PK
     SAFE_CAST(id_donacion AS INT64) AS id_donacion,
-
-    -- FK Donante
     CASE
       WHEN id_donante IS NULL THEN 541
       ELSE SAFE_CAST(id_donante AS INT64)
     END AS id_donante,
-
-     -- FK Caso (541 si es NULL o no existe en silver_casos)
-    CASE
-      WHEN id_caso IS NULL THEN 541
-      WHEN SAFE_CAST(id_caso AS INT64) NOT IN (SELECT id_caso FROM ${ref("silver_casos")}) THEN 541
-      ELSE SAFE_CAST(id_caso AS INT64)
-    END AS id_caso,
-
-    -- Fecha donación (microsegundos → TIMESTAMP)
+    
+    -- FK Caso: siempre 541 (simplificado)
+    541 AS id_caso,
+    
     TIMESTAMP_MICROS(CAST(DIV(fecha_donacion, 1000) AS INT64)) AS fecha_donacion,
-
-    -- Monto (si < 0 se elimina después)
     SAFE_CAST(monto AS FLOAT64) AS monto,
-
-    -- Medio de pago normalizado
+    
     CASE
       WHEN medio_pago IS NULL THEN 'nequi'
       WHEN LOWER(medio_pago) LIKE '%transfer%' THEN 'transferencia'
       WHEN LOWER(medio_pago) LIKE '%tarjeta%' THEN 'tarjeta'
       ELSE LOWER(TRIM(medio_pago))
     END AS medio_pago,
-
-    -- Estado del pago normalizado
+    
     CASE
       WHEN estado IS NULL THEN 'exitoso'
       ELSE LOWER(TRIM(estado))
     END AS estado,
-
-    -- Auditorías
+    
     TIMESTAMP_MICROS(CAST(DIV(created_at, 1000) AS INT64)) AS created_at,
     TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)) AS last_modified_at,
-
     CURRENT_TIMESTAMP() AS fecha_ingesta,
     'raw_donaciones' AS fuente
-
+    
   FROM ${ref("raw_donaciones")}
-
   WHERE id_donacion IS NOT NULL
     AND last_modified_at IS NOT NULL
 ),
 
--- ============================
--- REGLAS DE NEGOCIO
--- ============================
 reglas AS (
-  SELECT
-    *
+  SELECT *
   FROM base
-  WHERE monto >= 0   -- eliminar montos negativos
+  WHERE monto >= 0
 ),
 
--- ============================
--- DEDUPLICACIÓN
--- ============================
 dedupe AS (
-  SELECT
-    *
+  SELECT *
   FROM reglas
   QUALIFY ROW_NUMBER() OVER (
       PARTITION BY id_donacion
@@ -97,9 +71,6 @@ dedupe AS (
   ) = 1
 )
 
--- ============================
--- RESULTADO FINAL
--- ============================
 SELECT
   id_donacion,
   id_donante,

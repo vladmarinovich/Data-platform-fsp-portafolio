@@ -67,8 +67,7 @@ LEFT JOIN
 ON
   d.id_caso = c.id_caso
 WHERE
-  d.id_caso != 541
-  -- excepción permitida
+  d.id_caso NOT IN (541, 384, 317, 465, 379, 409)  -- Excepciones permitidas
   AND c.id_caso IS NULL
 UNION ALL
   -- =======================================================
