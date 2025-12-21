@@ -389,6 +389,35 @@ COALESCE(
 
 ---
 
+#### 🎯 Principio de Diseño Clave
+
+> **Timestamps Semánticos vs Técnicos en Watermarks**
+
+La solución V3 implementa un principio fundamental de ingeniería de datos:
+
+**❌ Evitar timestamps de ejecución como watermark:**
+- `CURRENT_TIMESTAMP()` genera ruido técnico
+- Cada ejecución produce resultados diferentes
+- Rompe idempotencia del pipeline
+
+**✅ Usar timestamps semánticos del evento:**
+- `fecha_donacion` refleja el evento de negocio
+- Garantiza idempotencia: mismo input → mismo output
+- Pipeline incremental basado en cambios reales, no artefactos de procesamiento
+
+**Implicación:**
+```sql
+-- ❌ MALO: Watermark técnico (no idempotente)
+last_modified_at = COALESCE(last_modified_at, CURRENT_TIMESTAMP())
+
+-- ✅ BUENO: Watermark semántico (idempotente)
+last_modified_at = COALESCE(last_modified_at, fecha_donacion)
+```
+
+Este patrón asegura que el pipeline incremental solo reprocesa registros con **cambios semánticos reales**, no cambios artificiales introducidos por el procesamiento.
+
+---
+
 #### Impacto en el Pipeline
 
 **Antes (V1/V2):**
