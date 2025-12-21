@@ -297,59 +297,163 @@ python3 src/main.py
 
 ---
 
-### 9. Lógica Defensiva para Watermarks NULL (Incidente 2025-12-20 Tarde)
+### 9. Lógica Defensiva para Watermarks NULL - Evolución de la Solución
 
-**Síntoma:**  
-2 registros nuevos (id_donacion 15827, 15828) no aparecían en SILVER a pesar de estar en RAW y Supabase. Query de diagnóstico mostró `watermark_null = true` para estos registros.
+**Fecha:** 2025-12-20 (Tarde) - 2025-12-21 (Mañana)  
+**Severidad:** Media  
+**Estado:** ✅ RESUELTO
 
-**Causa:**  
-Registros creados manualmente en Supabase **antes** de que los triggers automáticos fueran implementados. Estos registros tenían `last_modified_at = NULL` en el origen, lo que causaba:
+#### Síntoma
+- 2 registros nuevos (id_donacion 15827, 15828) no aparecían en SILVER
+- Query de diagnóstico mostró `watermark_null = true` en RAW
+- Pipeline procesaba 13/15 registros (87% cobertura)
+
+#### Causa Raíz
+Registros creados manualmente en Supabase **antes** de implementar validaciones de calidad de datos. Tenían `last_modified_at = NULL` en el origen, causando:
 1. Filtro `WHERE last_modified_at IS NOT NULL` en SILVER los excluía
-2. Conversión `TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64))` fallaba con NULL
+2. Conversión `TIMESTAMP_MICROS(...)` fallaba con NULL
 3. Pipeline incremental no podía ordenar registros sin watermark válido
 
-**Solución:**  
-Implementamos **lógica defensiva** en `silver_donaciones.sqlx` con fallback a campo de negocio:
+---
+
+#### Evolución de la Solución
+
+##### **V1: Solución Inicial (No Óptima)**
+**Enfoque:** Triggers en Supabase para auto-completar timestamps
 
 ```sql
--- Lógica defensiva: Si last_modified_at es NULL, usar fecha_donacion como fallback
+-- Trigger en base de datos transaccional
+CREATE TRIGGER auto_set_timestamps
+BEFORE INSERT OR UPDATE ON donaciones
+FOR EACH ROW EXECUTE FUNCTION set_timestamps();
+```
+
+**Problemas identificados:**
+- ❌ Acopla lógica de negocio al sistema transaccional
+- ❌ Difícil de testear y mantener
+- ❌ Viola separación de responsabilidades
+- ❌ No portable a otras fuentes de datos
+
+##### **V2: Refactor con CURRENT_TIMESTAMP (Error de Diseño)**
+**Enfoque:** Lógica defensiva en SILVER usando tiempo de procesamiento
+
+```sql
+-- INCORRECTO: Rompe idempotencia
+COALESCE(last_modified_at, CURRENT_TIMESTAMP())
+```
+
+**Problemas identificados:**
+- ❌ **Rompe idempotencia**: Cada ejecución genera timestamp diferente
+- ❌ **Ruido técnico**: Pipeline cree que TODO cambió en cada run
+- ❌ **Ineficiente**: Reprocesa registros que no cambiaron
+- ❌ **Watermark inválido**: No refleja cambios reales del evento
+
+##### **V3: Solución Final (Idempotente y Semántica)**
+**Enfoque:** Lógica defensiva usando campos de negocio
+
+```sql
+-- created_at: Inmutable - cuándo ocurrió la donación
+COALESCE(
+  TIMESTAMP_MICROS(CAST(DIV(created_at, 1000) AS INT64)),
+  TIMESTAMP_MICROS(CAST(DIV(fecha_donacion, 1000) AS INT64))
+) AS created_at,
+
+-- last_modified_at: Último cambio relevante del evento
+-- Fallback: usar fecha_donacion (mantiene idempotencia)
+-- Evita ruido técnico de CURRENT_TIMESTAMP() que rompería watermark
 COALESCE(
   TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)),
   TIMESTAMP_MICROS(CAST(DIV(fecha_donacion, 1000) AS INT64))
 ) AS last_modified_at,
 ```
 
-**Cambios en código:**
-1. **Línea 52-56**: Agregado `COALESCE` con fallback a `fecha_donacion`
-2. **Línea 58**: Eliminado filtro `AND last_modified_at IS NOT NULL`
+**Ventajas de la solución final:**
+- ✅ **Idempotente**: Mismo input → mismo output (siempre)
+- ✅ **Semántico**: Usa fecha de negocio, no ruido técnico
+- ✅ **Eficiente**: Solo reprocesa cambios reales
+- ✅ **Portable**: Funciona con cualquier fuente de datos
+- ✅ **Testeable**: Lógica clara y predecible
+- ✅ **Separación de responsabilidades**: Pipeline maneja calidad de datos
 
-**Comentario técnico:**
-```sql
--- Defensive programming: Handle legacy records without watermark metadata
--- Fallback order: last_modified_at → fecha_donacion (business date)
--- This ensures incremental pipeline can process records even with incomplete metadata
-```
+---
 
-**Impacto en el pipeline:**
-- ✅ **Antes**: 13/15 registros procesados (2 perdidos por NULL watermark)
-- ✅ **Después**: 15/15 registros procesados (100% cobertura)
-- ✅ **Prevención**: Futuros registros con metadata incompleta se procesarán automáticamente
-- ✅ **Ordenamiento**: Pipeline usa fecha de negocio como watermark secundario
+#### Comparación de Enfoques
 
-**Aprendizaje clave:**
-> **"Diseñé lógica defensiva para pipelines incrementales ante inconsistencias en metadata de ingesta, usando campos de negocio como fallback para garantizar 100% de cobertura de datos."**
+| Aspecto | V1: Triggers | V2: CURRENT_TIMESTAMP | V3: fecha_donacion |
+|---------|--------------|----------------------|-------------------|
+| **Idempotencia** | ✅ Sí | ❌ No | ✅ Sí |
+| **Portabilidad** | ❌ No | ✅ Sí | ✅ Sí |
+| **Eficiencia** | ✅ Alta | ❌ Baja | ✅ Alta |
+| **Mantenibilidad** | ❌ Baja | ⚠️ Media | ✅ Alta |
+| **Separación** | ❌ Acoplado | ✅ Desacoplado | ✅ Desacoplado |
 
-**Archivos modificados:**
-- `definitions/silver/silver_donaciones.sqlx` (líneas 52-59)
+---
 
-**Commits:**
-- `fix: Handle NULL last_modified_at in silver_donaciones using created_at fallback` (73cea7d)
-- `fix: Use fecha_donacion as fallback for NULL last_modified_at instead of created_at` (1708919)
+#### Impacto en el Pipeline
 
-**Resultado:**  
+**Antes (V1/V2):**
+- 13/15 registros procesados (87% cobertura)
+- Lógica acoplada al origen o no idempotente
+- Reprocesamiento innecesario
+
+**Después (V3):**
+- ✅ 15/15 registros procesados (100% cobertura)
+- ✅ Pipeline idempotente y eficiente
+- ✅ Lógica portable y testeable
+- ✅ Watermark semántico válido
+
+---
+
+#### Archivos Modificados
+
+**Transformaciones SQL:**
+- `definitions/silver/silver_donaciones.sqlx` (líneas 52-65)
+
+**Commits (evolución):**
+1. `fix: Handle NULL last_modified_at in silver_donaciones using created_at fallback` (73cea7d)
+2. `fix: Use fecha_donacion as fallback for NULL last_modified_at instead of created_at` (1708919)
+3. `fix: Correct timestamp semantics - created_at uses business date, last_modified_at uses processing time` (5d21a44)
+4. `fix: Garantizar idempotencia usando fecha_donacion como fallback en lugar de CURRENT_TIMESTAMP` (ea7211e) ✅ **Final**
+
+---
+
+#### Aprendizajes Clave
+
+##### 1. **Idempotencia en Pipelines de Datos**
+> *"Un pipeline idempotente debe producir el mismo resultado cuando se ejecuta múltiples veces con los mismos datos de entrada, sin importar cuándo se ejecute."*
+
+**Lección:** Evitar funciones no determinísticas (`CURRENT_TIMESTAMP()`, `RAND()`, etc.) en transformaciones que afecten watermarks o deduplicación.
+
+##### 2. **Separación de Responsabilidades**
+> *"El sistema transaccional debe enfocarse en transacciones. El pipeline de datos debe manejar calidad y transformaciones."*
+
+**Lección:** No acoplar lógica de calidad de datos al origen mediante triggers. Mantener el pipeline defensivo y portable.
+
+##### 3. **Timestamps Semánticos vs Técnicos**
+> *"Usar timestamps de negocio (fecha_donacion) en lugar de timestamps técnicos (CURRENT_TIMESTAMP) para watermarks garantiza eficiencia y claridad."*
+
+**Lección:** Los watermarks deben reflejar cambios reales del evento, no artefactos del procesamiento.
+
+##### 4. **Iteración y Mejora Continua**
+> *"La primera solución que funciona no siempre es la mejor. Reflexionar sobre arquitectura y refactorizar demuestra madurez profesional."*
+
+**Lección:** Documentar la evolución de soluciones muestra pensamiento crítico y capacidad de auto-corrección.
+
+---
+
+#### Frase para CV/Portafolio
+
+> **"Diseñé e iteré sobre solución de lógica defensiva para pipelines incrementales, evolucionando desde triggers de base de datos hasta implementación idempotente usando campos de negocio como fallback, garantizando 100% de cobertura de datos con eficiencia óptima."**
+
+---
+
+#### Resultado Final
+
 ✅ Pipeline robusto ante inconsistencias en metadata  
 ✅ Cobertura 100% de registros históricos y nuevos  
-✅ Patrón reutilizable para otras tablas (gastos, casos, donantes)
+✅ Solución idempotente y eficiente  
+✅ Patrón reutilizable para otras tablas (gastos, casos, donantes)  
+✅ Documentación completa del proceso de mejora
 
 ---
 
