@@ -56,12 +56,12 @@ WITH base AS (
       TIMESTAMP_MICROS(CAST(DIV(fecha_donacion, 1000) AS INT64))
     ) AS created_at,
     
-    -- last_modified_at: Watermark para incrementalidad (mutable)
-    -- Fallback: usar CURRENT_TIMESTAMP (momento de procesamiento)
-    -- Esto permite detectar reprocesamiento y mantener watermark actualizado
+    -- last_modified_at: Último cambio relevante del evento
+    -- Fallback: usar fecha_donacion (mantiene idempotencia)
+    -- Evita ruido técnico de CURRENT_TIMESTAMP() que rompería watermark
     COALESCE(
       TIMESTAMP_MICROS(CAST(DIV(last_modified_at, 1000) AS INT64)),
-      CURRENT_TIMESTAMP()
+      TIMESTAMP_MICROS(CAST(DIV(fecha_donacion, 1000) AS INT64))
     ) AS last_modified_at,
     CURRENT_TIMESTAMP() AS fecha_ingesta,
     'raw_donaciones' AS fuente
